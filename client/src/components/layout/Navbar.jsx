@@ -59,9 +59,12 @@ const Navbar = () => {
         {/* Right */}
         <div className="flex items-center gap-4">
 
-          <button className="font-semibold hover:text-[#D4AF37]">
-            Login
-          </button>
+          <Link
+             to="/choose-role"
+             className="font-semibold transition hover:text-[#D4AF37]"
+         >
+                      Login
+          </Link>
 
          <Link
             to="/choose-role"
