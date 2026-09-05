@@ -4,15 +4,19 @@ import StudentNavbar from "../components/student/StudentNavbar";
 
 const StudentLayout = () => {
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex min-h-screen bg-slate-100">
 
+      {/* Sidebar */}
       <StudentSidebar />
 
-      <div className="flex flex-1 flex-col">
+      {/* Main Content */}
+      <div className="flex min-w-0 flex-1 flex-col">
 
+        {/* Top Navbar */}
         <StudentNavbar />
 
-        <main className="flex-1 p-6">
+        {/* Page Content */}
+        <main className="flex-1 overflow-y-auto p-6">
           <Outlet />
         </main>
 

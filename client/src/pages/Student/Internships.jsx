@@ -1,177 +1,494 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { FiSearch, FiMapPin, FiClock, FiBookmark } from "react-icons/fi";
+
+import {
+FiSearch,
+FiMapPin,
+FiClock,
+FiBookmark,
+FiBriefcase,
+FiCreditCard
+} from "react-icons/fi";
+
+
 import { getInternships } from "../../services/internshipService";
 
+
+
 const Internships = () => {
-  const [internships, setInternships] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  const [search, setSearch] = useState("");
-  const [mode, setMode] = useState("All");
 
-  useEffect(() => {
-    loadInternships();
-  }, []);
+const [internships,setInternships] =
+useState([]);
 
-  const loadInternships = async () => {
-    try {
-      const data = await getInternships();
-      setInternships(data.internships || []);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const filteredInternships = useMemo(() => {
-    return internships.filter((item) => {
-      const matchesSearch =
-        item.title.toLowerCase().includes(search.toLowerCase()) ||
-        item.company.toLowerCase().includes(search.toLowerCase());
+const [loading,setLoading] =
+useState(true);
 
-      const matchesMode =
-        mode === "All" || item.mode === mode;
 
-      return matchesSearch && matchesMode;
-    });
-  }, [internships, search, mode]);
+const [search,setSearch] =
+useState("");
 
-  return (
-    <div className="space-y-8">
 
-      {/* Heading */}
-      <div>
-        <h1 className="text-4xl font-bold">
-          Browse Internships
-        </h1>
 
-        <p className="mt-2 text-gray-500">
-          Find internships that match your skills.
-        </p>
-      </div>
+const [mode,setMode] =
+useState("All");
 
-      {/* Filters */}
-      <div className="flex flex-col gap-4 rounded-2xl bg-white p-6 shadow md:flex-row">
 
-        <div className="relative flex-1">
 
-          <FiSearch className="absolute left-4 top-4 text-gray-400" />
 
-          <input
-            type="text"
-            placeholder="Search internships..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border py-3 pl-12 pr-4 outline-none focus:border-[#D4AF37]"
-          />
 
-        </div>
+useEffect(()=>{
 
-        <select
-          value={mode}
-          onChange={(e) => setMode(e.target.value)}
-          className="rounded-xl border px-4 py-3 outline-none"
-        >
-          <option>All</option>
-          <option>Remote</option>
-          <option>Hybrid</option>
-          <option>Onsite</option>
-        </select>
+loadInternships();
 
-      </div>
+},[]);
 
-      {/* Internship List */}
 
-      {loading ? (
-        <div className="rounded-2xl bg-white p-10 text-center shadow">
-          Loading internships...
-        </div>
-      ) : filteredInternships.length === 0 ? (
-        <div className="rounded-2xl bg-white p-10 text-center shadow">
-          No internships found.
-        </div>
-      ) : (
-        <div className="grid gap-6">
 
-          {filteredInternships.map((item) => (
 
-            <div
-              key={item._id}
-              className="rounded-2xl bg-white p-6 shadow transition hover:shadow-lg"
-            >
+const loadInternships = async()=>{
 
-              <div className="flex flex-col justify-between gap-6 lg:flex-row">
 
-                <div className="space-y-3">
+try{
 
-                  <h2 className="text-2xl font-bold">
-                    {item.title}
-                  </h2>
 
-                  <p className="text-lg font-medium text-[#D4AF37]">
-                    {item.company}
-                  </p>
+const res =
+await getInternships();
 
-                  <div className="flex flex-wrap gap-5 text-gray-500">
 
-                    <span className="flex items-center gap-2">
-                      <FiMapPin />
-                      {item.location}
-                    </span>
+setInternships(
+res.internships || []
+);
 
-                    <span className="flex items-center gap-2">
-                      <FiClock />
-                      {item.duration}
-                    </span>
 
-                  </div>
 
-                  <div className="flex flex-wrap gap-3">
+}catch(error){
 
-                    <span className="rounded-full bg-gray-100 px-3 py-1">
-                      {item.mode}
-                    </span>
+console.log(error);
 
-                    <span className="rounded-full bg-yellow-100 px-3 py-1 text-yellow-700">
-                      {item.category}
-                    </span>
+}
+finally{
 
-                    <span className="rounded-full bg-green-100 px-3 py-1 text-green-700">
-                      {item.stipend}
-                    </span>
+setLoading(false);
 
-                  </div>
+}
 
-                </div>
 
-                <div className="flex items-center gap-3">
-
-                  <button className="rounded-xl border px-5 py-3 transition hover:bg-gray-100">
-                    <FiBookmark />
-                  </button>
-
-                  <Link
-                    to={`/student/internships/${item._id}`}
-                    className="rounded-xl bg-[#D4AF37] px-6 py-3 font-semibold text-white transition hover:opacity-90"
-                  >
-                    View Details
-                  </Link>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          ))}
-
-        </div>
-      )}
-
-    </div>
-  );
 };
+
+
+
+
+
+
+
+const filtered =
+useMemo(()=>{
+
+
+return internships.filter((item)=>{
+
+
+const keyword =
+
+item.title
+?.toLowerCase()
+.includes(search.toLowerCase())
+
+||
+
+item.company
+?.toLowerCase()
+.includes(search.toLowerCase())
+
+;
+
+
+
+const modeMatch =
+
+mode==="All"
+
+||
+
+item.workMode===mode;
+
+
+
+return keyword && modeMatch;
+
+
+
+});
+
+
+},[
+internships,
+search,
+mode
+]);
+
+
+
+
+
+
+
+if(loading){
+
+return(
+
+<div className="flex h-[70vh] items-center justify-center">
+
+<h2 className="text-2xl font-bold">
+
+Loading Internships...
+
+</h2>
+
+</div>
+
+)
+
+}
+
+
+
+
+
+
+return(
+
+
+<div className="space-y-8">
+
+
+<div>
+
+<h1 className="text-4xl font-bold">
+
+SkilVira Internships
+
+</h1>
+
+
+<p className="mt-2 text-gray-500">
+
+Paid internships with certificate and industry experience.
+
+</p>
+
+
+</div>
+
+
+
+
+
+<div className="rounded-2xl bg-white p-6 shadow flex gap-4">
+
+
+<div className="flex-1">
+
+
+<input
+
+placeholder="Search internship..."
+
+value={search}
+
+onChange={(e)=>setSearch(e.target.value)}
+
+className="w-full rounded-xl border p-3"
+
+/>
+
+
+</div>
+
+
+
+<select
+
+value={mode}
+
+onChange={(e)=>setMode(e.target.value)}
+
+className="rounded-xl border px-5"
+
+>
+
+<option>All</option>
+
+<option>Online</option>
+
+<option>Offline</option>
+
+<option>Hybrid</option>
+
+
+</select>
+
+
+</div>
+
+
+
+
+
+
+
+<div className="grid gap-6">
+
+
+{
+filtered.map((item)=>(
+
+
+<div
+
+key={item._id}
+
+className="rounded-2xl bg-white shadow overflow-hidden"
+
+>
+
+
+
+
+{
+item.internshipImage &&
+
+<img
+
+src={item.internshipImage}
+
+className="h-48 w-full object-cover"
+
+/>
+
+}
+
+
+
+
+<div className="p-6">
+
+
+
+<div className="flex justify-between">
+
+
+<div>
+
+
+<h2 className="text-2xl font-bold">
+
+{item.title}
+
+</h2>
+
+
+<p className="text-[#D4AF37] text-lg">
+
+{item.company}
+
+</p>
+
+
+</div>
+
+
+
+<span className="rounded-full bg-green-100 px-4 py-2 text-green-700">
+
+Paid Internship
+
+</span>
+
+
+</div>
+
+
+
+
+
+
+
+<div className="mt-5 flex flex-wrap gap-5 text-gray-600">
+
+
+<span className="flex gap-2 items-center">
+
+<FiMapPin/>
+
+{item.location}
+
+</span>
+
+
+
+
+<span className="flex gap-2 items-center">
+
+<FiClock/>
+
+{item.duration}
+
+</span>
+
+
+
+
+
+<span className="flex gap-2 items-center">
+
+<FiCreditCard/>
+
+₹{item.price}
+
+</span>
+
+
+
+</div>
+
+
+
+
+
+
+
+<div className="mt-5 flex gap-3">
+
+
+<span className="rounded-full bg-blue-100 px-4 py-2 text-blue-700">
+
+{item.workMode}
+
+</span>
+
+
+
+<span className="rounded-full bg-yellow-100 px-4 py-2 text-yellow-700">
+
+{item.category}
+
+</span>
+
+
+</div>
+
+
+
+
+
+
+
+<div className="mt-5">
+
+
+<h3 className="font-bold">
+
+You will get:
+
+</h3>
+
+
+<div className="mt-2 flex flex-wrap gap-2">
+
+
+{
+item.benefits?.map((b,index)=>(
+
+<span
+
+key={index}
+
+className="rounded-full bg-gray-100 px-3 py-1"
+
+>
+
+✓ {b}
+
+</span>
+
+
+))
+
+}
+
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+
+<div className="mt-6 flex justify-between">
+
+
+<button className="rounded-xl border p-3">
+
+<FiBookmark/>
+
+</button>
+
+
+
+<Link
+
+to={`/student/internships/${item._id}`}
+
+className="rounded-xl bg-[#D4AF37] px-6 py-3 text-white font-semibold"
+
+>
+
+View Details
+
+</Link>
+
+
+
+</div>
+
+
+
+
+
+</div>
+
+
+</div>
+
+
+
+))
+
+
+}
+
+
+</div>
+
+
+
+
+
+</div>
+
+
+);
+
+
+};
+
 
 export default Internships;

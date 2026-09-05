@@ -1,0 +1,220 @@
+.
+├── client
+│   └── src
+│       └── components
+│           └── common
+│               ├── Button
+│               │   ├── Button.jsx
+│               │   └── index.js
+│               ├── Card
+│               │   ├── Card.jsx
+│               │   └── index.js
+│               └── Input
+│                   ├── index.js
+│                   └── Input.jsx
+├── eslint.config.js
+├── index.html
+├── package.json
+├── package-lock.json
+├── public
+│   ├── favicon.svg
+│   └── icons.svg
+├── README.md
+├── src
+│   ├── App.jsx
+│   ├── assets
+│   │   ├── hero.png
+│   │   ├── icons
+│   │   ├── images
+│   │   │   ├── companies
+│   │   │   ├── hero
+│   │   │   ├── hero-placeholder.png
+│   │   │   ├── icons
+│   │   │   ├── illustrations
+│   │   │   └── logos
+│   │   ├── logo
+│   │   ├── react.svg
+│   │   └── vite.svg
+│   ├── components
+│   │   ├── admin
+│   │   │   ├── AddInternshipModal.jsx
+│   │   │   ├── DashboardCard.jsx
+│   │   │   ├── DataTable.jsx
+│   │   │   ├── EditInternshipModal.jsx
+│   │   │   ├── Sidebar.jsx
+│   │   │   ├── StatCard.jsx
+│   │   │   └── Topbar.jsx
+│   │   ├── ambassador
+│   │   ├── auth
+│   │   │   ├── AuthBranding.jsx
+│   │   │   └── ProtectedRoute.jsx
+│   │   ├── cards
+│   │   ├── common
+│   │   │   ├── Button
+│   │   │   │   ├── Button.jsx
+│   │   │   │   └── index.js
+│   │   │   ├── Card
+│   │   │   │   ├── Card.jsx
+│   │   │   │   └── index.js
+│   │   │   └── Input
+│   │   │       ├── index.js
+│   │   │       └── Input.jsx
+│   │   ├── control
+│   │   ├── employee
+│   │   ├── forms
+│   │   ├── home
+│   │   │   ├── CertificateVerification.jsx
+│   │   │   ├── CTA.jsx
+│   │   │   ├── FAQ.jsx
+│   │   │   ├── FeaturedInternships.jsx
+│   │   │   ├── FloatingCards.jsx
+│   │   │   ├── Hero.jsx
+│   │   │   ├── HowitWorks.jsx
+│   │   │   ├── PartnerUniversities.jsx
+│   │   │   ├── PopularCategories.jsx
+│   │   │   ├── SearchBar.jsx
+│   │   │   ├── Stats.jsx
+│   │   │   ├── StudentCommunities.jsx
+│   │   │   ├── Testimonials.jsx
+│   │   │   ├── TrustedCompanies.jsx
+│   │   │   └── WhySkilvira.jsx
+│   │   ├── layout
+│   │   │   ├── Navbar.jsx
+│   │   │   └── StudentLayout.jsx
+│   │   ├── recruiter
+│   │   │   ├── QuickActions.jsx
+│   │   │   ├── RecentApplications.jsx
+│   │   │   ├── RecentInternships.jsx
+│   │   │   ├── RecruiterNavbar.jsx
+│   │   │   ├── RecruiterSidebar.jsx
+│   │   │   └── StatCard.jsx
+│   │   ├── student
+│   │   │   ├── ApplyInternshipModal.jsx
+│   │   │   ├── CareerPreferenceForm.jsx
+│   │   │   ├── CertificateForm.jsx
+│   │   │   ├── EditProfileForm.jsx
+│   │   │   ├── EducationForm.jsx
+│   │   │   ├── InfoItem.jsx
+│   │   │   ├── PersonalForm.jsx
+│   │   │   ├── ProfileHeader.jsx
+│   │   │   ├── ProfileSection.jsx
+│   │   │   ├── ProfileStepper.jsx
+│   │   │   ├── ProjectForm.jsx
+│   │   │   ├── SkillBadge.jsx
+│   │   │   ├── SkillsSelector.jsx
+│   │   │   ├── SocialLinksForm.jsx
+│   │   │   ├── StudentNavbar.jsx
+│   │   │   └── StudentSidebar.jsx
+│   │   └── ui
+│   │       ├── Badge.jsx
+│   │       ├── Button.jsx
+│   │       ├── Card.jsx
+│   │       ├── Input.jsx
+│   │       ├── SectionHeading.jsx
+│   │       ├── Select.jsx
+│   │       └── Textarea.jsx
+│   ├── context
+│   │   └── AuthContext.jsx
+│   ├── hooks
+│   ├── index.css
+│   ├── layouts
+│   │   ├── AdminLayout.jsx
+│   │   ├── AmbassadorLayout.jsx
+│   │   ├── AuthLayout.jsx
+│   │   ├── ControlLayout.jsx
+│   │   ├── EmployeeLayout.jsx
+│   │   ├── MainLayout.jsx
+│   │   ├── RecruiterLayout.jsx
+│   │   └── StudentLayout.jsx
+│   ├── main.jsx
+│   ├── pages
+│   │   ├── Admin
+│   │   │   ├── Applications.jsx
+│   │   │   ├── Certificates.jsx
+│   │   │   ├── Colleges.jsx
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Internships.jsx
+│   │   │   ├── Recruiters.jsx
+│   │   │   ├── Settings.jsx
+│   │   │   └── Students.jsx
+│   │   ├── Ambassador
+│   │   │   ├── Analytics.jsx
+│   │   │   ├── Communities.jsx
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Profile.jsx
+│   │   │   ├── Referrals.jsx
+│   │   │   └── Students.jsx
+│   │   ├── ChooseRole
+│   │   │   └── ChooseRole.jsx
+│   │   ├── Company
+│   │   ├── Control
+│   │   │   ├── Analytics.jsx
+│   │   │   ├── Applications.jsx
+│   │   │   ├── Certificates.jsx
+│   │   │   ├── Companies.jsx
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Profile.jsx
+│   │   │   ├── Settings.jsx
+│   │   │   ├── Universities.jsx
+│   │   │   └── Users.jsx
+│   │   ├── Dashboard
+│   │   ├── Employee
+│   │   │   ├── Communities.jsx
+│   │   │   ├── Companies.jsx
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Profile.jsx
+│   │   │   ├── Reports.jsx
+│   │   │   └── Universities.jsx
+│   │   ├── Home
+│   │   │   └── Home.jsx
+│   │   ├── Login
+│   │   │   └── Login.jsx
+│   │   ├── Recruiter
+│   │   │   ├── Applications.jsx
+│   │   │   ├── CompanyProfile.jsx
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── ManageInternships.jsx
+│   │   │   ├── PostInternship.jsx
+│   │   │   ├── Profile.jsx
+│   │   │   ├── Settings.jsx
+│   │   │   └── Students.jsx
+│   │   ├── Register
+│   │   │   └── Register.jsx
+│   │   └── Student
+│   │       ├── Applications.jsx
+│   │       ├── Dashboard.jsx
+│   │       ├── EditProfile.jsx
+│   │       ├── InternshipDetails.jsx
+│   │       ├── Internships.jsx
+│   │       ├── Notifications.jsx
+│   │       ├── Profile.jsx
+│   │       ├── SavedInternships.jsx
+│   │       └── Settings.jsx
+│   ├── routes
+│   │   └── AppRoutes.jsx
+│   ├── services
+│   │   ├── ambassadorService.js
+│   │   ├── api.js
+│   │   ├── applicationService.js
+│   │   ├── certificateService.js
+│   │   ├── controlService.js
+│   │   ├── dashboardService.js
+│   │   ├── employeeService.js
+│   │   ├── internshipService.js
+│   │   ├── ProtectedRoute.jsx
+│   │   ├── recruiterService.js
+│   │   └── studentProfileService.js
+│   ├── styles
+│   │   └── theme.js
+│   └── utils
+├── structure.txt
+├── styles
+│   ├── colors.js
+│   ├── index.js
+│   ├── radius.js
+│   ├── shadows.js
+│   ├── spacing.js
+│   └── typography.js
+└── vite.config.js
+
+57 directories, 161 files

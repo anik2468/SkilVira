@@ -1,39 +1,40 @@
-import { FiBell } from "react-icons/fi";
+import { Outlet } from "react-router-dom";
 
-const Topbar = () => {
+import Sidebar from "../components/admin/Sidebar";
+import Topbar from "../components/admin/Topbar";
+
+
+const AdminLayout = () => {
+
   return (
-    <header className="flex h-20 items-center justify-between border-b bg-white px-8">
-      <div>
-        <h2 className="text-2xl font-bold">
-          Welcome Back 👋
-        </h2>
 
-        <p className="text-gray-500">
-          Manage your internship platform
-        </p>
+    <div className="flex min-h-screen bg-slate-100">
+
+
+      <Sidebar />
+
+
+      <div className="flex min-w-0 flex-1 flex-col">
+
+
+        <Topbar />
+
+
+        <main className="flex-1 overflow-y-auto p-6">
+
+          <Outlet />
+
+        </main>
+
+
       </div>
 
-      <div className="flex items-center gap-6">
-        <FiBell size={22} />
 
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#D4AF37] text-white">
-            A
-          </div>
+    </div>
 
-          <div>
-            <h3 className="font-semibold">
-              Admin
-            </h3>
-
-            <p className="text-sm text-gray-500">
-              Super Admin
-            </p>
-          </div>
-        </div>
-      </div>
-    </header>
   );
+
 };
 
-export default Topbar;
+
+export default AdminLayout;
