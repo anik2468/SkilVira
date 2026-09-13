@@ -1,11 +1,27 @@
 import api from "./api";
 
+
+// =====================================================
+// APPLICATION SERVICE
+// =====================================================
+
+
+// =====================================================
+// STUDENT
+// =====================================================
+
+
 // ======================================
-// Student
+// Apply Internship
 // ======================================
 
-// Apply Internship
 export const applyInternship = async (body) => {
+  if (!body) {
+    throw new Error(
+      "Application data is required"
+    );
+  }
+
   const { data } = await api.post(
     "/applications/apply",
     body
@@ -14,10 +30,20 @@ export const applyInternship = async (body) => {
   return data;
 };
 
+
+// ======================================
 // Student Applications
+// ======================================
+
 export const getMyApplications = async (
   studentId
 ) => {
+  if (!studentId) {
+    throw new Error(
+      "Student ID is required"
+    );
+  }
+
   const { data } = await api.get(
     `/applications/student/${studentId}`
   );
@@ -25,10 +51,54 @@ export const getMyApplications = async (
   return data;
 };
 
+
+// ======================================
+// Get Logged-in Student Applications
+// ======================================
+
+export const getMyStudentApplications = async () => {
+  const { data } = await api.get(
+    "/applications/me"
+  );
+
+  return data;
+};
+
+
+// ======================================
+// Single Student Application
+// ======================================
+
+export const getMyApplicationById = async (
+  id
+) => {
+  if (!id) {
+    throw new Error(
+      "Application ID is required"
+    );
+  }
+
+  const { data } = await api.get(
+    `/applications/details/${id}`
+  );
+
+  return data;
+};
+
+
+// ======================================
 // Withdraw Application
+// ======================================
+
 export const withdrawApplication = async (
   id
 ) => {
+  if (!id) {
+    throw new Error(
+      "Application ID is required"
+    );
+  }
+
   const { data } = await api.delete(
     `/applications/${id}`
   );
@@ -36,14 +106,25 @@ export const withdrawApplication = async (
   return data;
 };
 
+
+// =====================================================
+// RECRUITER
+// =====================================================
+
+
 // ======================================
-// Recruiter
+// Recruiter Applications
 // ======================================
 
-// Recruiter Applications
 export const getRecruiterApplications = async (
   recruiterId
 ) => {
+  if (!recruiterId) {
+    throw new Error(
+      "Recruiter ID is required"
+    );
+  }
+
   const { data } = await api.get(
     `/applications/recruiter/${recruiterId}`
   );
@@ -51,9 +132,19 @@ export const getRecruiterApplications = async (
   return data;
 };
 
+
+// ======================================
 // Recruiter Dashboard Stats
+// ======================================
+
 export const getRecruiterApplicationStats =
   async (recruiterId) => {
+    if (!recruiterId) {
+      throw new Error(
+        "Recruiter ID is required"
+      );
+    }
+
     const { data } = await api.get(
       `/applications/recruiter/stats/${recruiterId}`
     );
@@ -61,9 +152,19 @@ export const getRecruiterApplicationStats =
     return data;
   };
 
+
+// ======================================
 // Single Application
+// ======================================
+
 export const getApplicationDetails =
   async (id) => {
+    if (!id) {
+      throw new Error(
+        "Application ID is required"
+      );
+    }
+
     const { data } = await api.get(
       `/applications/details/${id}`
     );
@@ -71,9 +172,25 @@ export const getApplicationDetails =
     return data;
   };
 
-// Update Status
+
+// ======================================
+// Update Application Status
+// ======================================
+
 export const updateApplicationStatus =
   async (id, body) => {
+    if (!id) {
+      throw new Error(
+        "Application ID is required"
+      );
+    }
+
+    if (!body) {
+      throw new Error(
+        "Application status data is required"
+      );
+    }
+
     const { data } = await api.put(
       `/applications/status/${id}`,
       body
@@ -82,11 +199,16 @@ export const updateApplicationStatus =
     return data;
   };
 
+
+// =====================================================
+// ADMIN / EMPLOYEE / CONTROL
+// =====================================================
+
+
 // ======================================
-// Admin / Employee / Control
+// All Applications
 // ======================================
 
-// All Applications
 export const getAllApplications =
   async () => {
     const { data } = await api.get(
@@ -95,3 +217,48 @@ export const getAllApplications =
 
     return data;
   };
+
+
+// ======================================
+// Delete Application
+// ======================================
+
+export const deleteApplication = async (
+  id
+) => {
+  if (!id) {
+    throw new Error(
+      "Application ID is required"
+    );
+  }
+
+  const { data } = await api.delete(
+    `/applications/${id}`
+  );
+
+  return data;
+};
+
+
+// =====================================================
+// DEFAULT EXPORT
+// =====================================================
+
+export default {
+  // Student
+  applyInternship,
+  getMyApplications,
+  getMyStudentApplications,
+  getMyApplicationById,
+  withdrawApplication,
+
+  // Recruiter
+  getRecruiterApplications,
+  getRecruiterApplicationStats,
+  getApplicationDetails,
+  updateApplicationStatus,
+
+  // Admin / Employee / Control
+  getAllApplications,
+  deleteApplication,
+};

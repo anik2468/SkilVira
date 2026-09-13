@@ -1,27 +1,32 @@
+import { useState } from "react";
 import { Outlet } from "react-router-dom";
+
 import RecruiterSidebar from "../components/recruiter/RecruiterSidebar";
 import RecruiterNavbar from "../components/recruiter/RecruiterNavbar";
 
 const RecruiterLayout = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const closeSidebar = () => {
+    setSidebarOpen(false);
+  };
+
   return (
-    <div className="flex min-h-screen bg-slate-100">
+    <div className="flex min-h-screen bg-[#F8F8F6]">
+      <RecruiterSidebar
+        mobileOpen={sidebarOpen}
+        onClose={closeSidebar}
+      />
 
-      {/* Sidebar */}
-      <RecruiterSidebar />
-
-      {/* Main Content */}
       <div className="flex min-w-0 flex-1 flex-col">
+        <RecruiterNavbar
+          onMenuClick={() => setSidebarOpen(true)}
+        />
 
-        {/* Navbar */}
-        <RecruiterNavbar />
-
-        {/* Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="min-w-0 flex-1 overflow-x-hidden p-4 sm:p-5 lg:p-6">
           <Outlet />
         </main>
-
       </div>
-
     </div>
   );
 };
