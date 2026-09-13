@@ -3,7 +3,7 @@ import path from "path";
 
 const storage = multer.diskStorage({
   destination(req, file, cb) {
-    cb(null, "uploads/resumes");
+    cb(null, "uploads/resume");
   },
 
   filename(req, file, cb) {
@@ -18,10 +18,12 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype === "application/pdf") {
+  if (
+    file.mimetype === "application/pdf"
+  ) {
     cb(null, true);
   } else {
-    cb(new Error("Only PDF files are allowed."));
+    cb(new Error("Only PDF allowed"));
   }
 };
 
