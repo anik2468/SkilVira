@@ -1,185 +1,137 @@
 import api from "./api";
 
-
-// =====================================================
-// AMBASSADOR SERVICE
-// =====================================================
-
-
-// ======================================
-// Ambassador Dashboard
-// Existing function preserved
-// ======================================
-
-export const getDashboard = async (
-  userId
-) => {
-  if (!userId) {
-    throw new Error(
-      "User ID is required"
+const getStoredUserId = () => {
+  try {
+    const user = JSON.parse(
+      localStorage.getItem("user") || "{}"
     );
+
+    return user?.id || user?._id || user?.userId || "";
+  } catch {
+    return "";
+  }
+};
+
+const resolveUserId = (userId) => {
+  const id = userId || getStoredUserId();
+
+  if (!id) {
+    throw new Error("Ambassador user ID is required.");
   }
 
+  return id;
+};
+
+// Dashboard
+export const getDashboard = async (userId) => {
+  const id = resolveUserId(userId);
+
   const { data } = await api.get(
-    `/ambassadors/dashboard/${userId}`
+    `/ambassador/dashboard/${id}`
   );
 
   return data;
 };
 
-
-// ======================================
-// Ambassador Profile
-// Existing function preserved
-// ======================================
-
-export const getProfile = async (
-  userId
-) => {
-  if (!userId) {
-    throw new Error(
-      "User ID is required"
-    );
-  }
+// Profile
+export const getProfile = async (userId) => {
+  const id = resolveUserId(userId);
 
   const { data } = await api.get(
-    `/ambassadors/${userId}`
+    `/ambassador/profile/${id}`
   );
 
   return data;
 };
 
+// Save profile
+export const saveProfile = async (userId, body) => {
+  const id = resolveUserId(userId);
 
-// ======================================
-// Save Ambassador Profile
-// Existing function preserved
-// ======================================
-
-export const saveProfile = async (
-  userId,
-  body
-) => {
-  if (!userId) {
-    throw new Error(
-      "User ID is required"
-    );
-  }
-
-  if (!body) {
-    throw new Error(
-      "Profile data is required"
-    );
+  if (!body || typeof body !== "object") {
+    throw new Error("Profile data is required.");
   }
 
   const { data } = await api.put(
-    `/ambassadors/${userId}`,
+    `/ambassador/profile/${id}`,
     body
   );
 
   return data;
 };
 
-
-// ======================================
-// Leaderboard
-// Existing function preserved
-// ======================================
-
+// Public leaderboard
 export const getLeaderboard = async () => {
   const { data } = await api.get(
-    "/ambassadors/leaderboard"
+    "/ambassador/leaderboard"
   );
 
   return data;
 };
 
-
-// =====================================================
-// REFERRAL HELPERS
-// =====================================================
-
-
-// ======================================
-// Get / Generate Referral Code
-// ======================================
-
-export const getReferralCode = async (
-  userId
-) => {
-  if (!userId) {
-    throw new Error(
-      "User ID is required"
-    );
-  }
+// Generate/get referral code
+export const getReferralCode = async (userId) => {
+  const id = resolveUserId(userId);
 
   const { data } = await api.get(
-    `/referral/generate/${userId}`
+    `/referral/generate/${id}`
   );
 
   return data;
 };
 
-
-// ======================================
-// Validate Referral Code
-// ======================================
-
+// Validate referral code
 export const validateReferralCode = async (
-  referralCode
+  referralCode,
+  internshipId
 ) => {
   if (!referralCode) {
-    throw new Error(
-      "Referral code is required"
-    );
+    throw new Error("Referral code is required.");
+  }
+
+  const payload = {
+    code: String(referralCode).trim(),
+  };
+
+  if (internshipId) {
+    payload.internshipId = internshipId;
   }
 
   const { data } = await api.post(
     "/referral/validate",
-    {
-      referralCode,
-    }
+    payload
   );
 
   return data;
 };
 
+// Referral analytics
+export const getReferralStats = async (userId) => {
+  const id = resolveUserId(userId);
 
-// ======================================
-// Referral Stats
-// ======================================
-
-export const getReferralStats = async () => {
   const { data } = await api.get(
-    "/ambassador/referrals"
+    `/ambassador/referrals/${id}`
   );
 
   return data;
 };
 
+// Ambassador's referred students
+export const getAmbassadorStudents = async (userId) => {
+  const id = resolveUserId(userId);
 
-// ======================================
-// Ambassador Students
-// ======================================
-
-export const getAmbassadorStudents = async () => {
   const { data } = await api.get(
-    "/ambassador/students"
+    `/ambassador/students/${id}`
   );
 
   return data;
 };
-
-
-// =====================================================
-// DEFAULT EXPORT
-// =====================================================
 
 export default {
   getDashboard,
   getProfile,
   saveProfile,
   getLeaderboard,
-
   getReferralCode,
   validateReferralCode,
   getReferralStats,

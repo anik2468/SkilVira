@@ -1,1 +1,20 @@
 @import "tailwindcss";
+
+
+/* Registration layout: compact brand panel, wider form */
+.auth-branding-compact {
+  flex: 0 0 34%;
+  width: 34%;
+  min-width: 260px;
+  display: flex;
+}
+.auth-branding-compact > * {
+  width: 100% !important;
+  max-width: none !important;
+  flex: 1 1 auto !important;
+}
+@media (max-width: 767px) {
+  .auth-branding-compact {
+    display: none;
+  }
+}

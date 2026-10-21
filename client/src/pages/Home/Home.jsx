@@ -1,5 +1,7 @@
+import { Link } from "react-router-dom";
 import Hero from "../../components/home/Hero";
 import FeaturedInternships from "../../components/home/FeaturedInternships";
+import GalleryBrochure from "../../components/home/GalleryBrochure";
 import PopularCategories from "../../components/home/PopularCategories";
 import WhySkilvira from "../../components/home/WhySkilvira";
 import HowItWorks from "../../components/home/HowItWorks";
@@ -110,6 +112,8 @@ const Home = () => {
         </div>
       </section>
 
+      <GalleryBrochure />
+
       {/* =====================================================
           WHY SKILVIRA
       ===================================================== */}
@@ -167,7 +171,7 @@ const Home = () => {
 
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-[32px] bg-black shadow-[0_30px_80px_rgba(0,0,0,0.16)]">
-            
+
             <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-[#D4AF37]/20 blur-[80px]" />
 
             <div className="absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-[#D4AF37]/10 blur-[90px]" />
@@ -203,6 +207,59 @@ const Home = () => {
           </div>
         </div>
       </section>
+
+
+      {/* SKILVIRA_CONTACT_FOOTER */}
+      <footer className="relative overflow-hidden bg-[#0A0A0A] text-white">
+        <div className="h-1 bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent" />
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-8">
+          <div>
+            <Link to="/" className="text-2xl font-black tracking-tight">
+              Skil<span className="text-[#D4AF37]">Vira</span>
+            </Link>
+            <p className="mt-3 max-w-xs text-sm leading-6 text-white/60">
+              Learn new skills, discover opportunities and build your career with SkilVira.
+            </p>
+          </div>
+
+          <div>
+            <h2 className="font-black text-[#D4AF37]">Explore</h2>
+            <div className="mt-4 flex flex-col items-start gap-3 text-sm text-white/70">
+              <Link className="hover:text-[#D4AF37]" to="/">Home</Link>
+              <Link className="hover:text-[#D4AF37]" to="/courses">Courses</Link>
+              <Link className="hover:text-[#D4AF37]" to="/internships">Internships</Link>
+            </div>
+          </div>
+
+          <div>
+            <h2 className="font-black text-[#D4AF37]">Contact & Support</h2>
+            <p className="mt-3 text-sm leading-6 text-white/60">
+              Need help with your course, internship, account or payment?
+              Visit our Contact & Support page.
+            </p>
+            <Link
+              to="/contact"
+              className="mt-4 inline-flex items-center rounded-xl bg-[#D4AF37] px-4 py-3 text-sm font-black text-black transition hover:bg-[#E4C454]"
+            >
+              Contact Support →
+            </Link>
+          </div>
+
+          <div>
+            <h2 className="font-black text-[#D4AF37]">Quick Links</h2>
+            <div className="mt-4 flex flex-col items-start gap-3 text-sm text-white/70">
+              <Link className="hover:text-[#D4AF37]" to="/choose-role">Login / Register</Link>
+              <Link className="hover:text-[#D4AF37]" to="/contact">Company Details</Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-white/10 px-5 py-5 text-center text-xs text-white/40">
+          © {new Date().getFullYear()} SkilVira. All rights reserved.
+          <span className="mx-2 text-[#D4AF37]">•</span>
+          Learn · Build · Grow
+        </div>
+      </footer>
 
     </main>
   );

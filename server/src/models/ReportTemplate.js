@@ -1,9 +1,10 @@
 import mongoose from "mongoose";
 
-
 const reportTemplateSchema = new mongoose.Schema(
-
   {
+    // =====================================================
+    // TEMPLATE NAME
+    // =====================================================
 
     name: {
       type: String,
@@ -11,8 +12,10 @@ const reportTemplateSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // =====================================================
+    // REPORT TYPE
+    // =====================================================
 
-    // Course / Internship / Achievement report
     type: {
       type: String,
       enum: [
@@ -23,6 +26,9 @@ const reportTemplateSchema = new mongoose.Schema(
       default: "course",
     },
 
+    // =====================================================
+    // COURSE
+    // =====================================================
 
     courseId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -30,17 +36,32 @@ const reportTemplateSchema = new mongoose.Schema(
       default: null,
     },
 
+    // =====================================================
+    // INTERNSHIP
+    // =====================================================
+
+    internshipId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Internship",
+      default: null,
+    },
+
+    // =====================================================
+    // TEMPLATE FILE
+    // =====================================================
 
     templateFile: {
       type: String,
       required: true,
+      trim: true,
     },
 
+    // =====================================================
+    // DYNAMIC FIELDS
+    // Employee decides which fields appear
+    // =====================================================
 
-    // Employee decides which fields
-    // should appear in the report
     fields: {
-
       studentName: {
         type: Boolean,
         default: true,
@@ -95,97 +116,167 @@ const reportTemplateSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
-
     },
 
+    // =====================================================
+    // FIELD POSITIONS
+    // =====================================================
 
-    // Future drag & drop positioning
     positions: {
-
       studentName: {
-        x: Number,
-        y: Number,
+        x: {
+          type: Number,
+          default: null,
+        },
+        y: {
+          type: Number,
+          default: null,
+        },
       },
 
       courseName: {
-        x: Number,
-        y: Number,
+        x: {
+          type: Number,
+          default: null,
+        },
+        y: {
+          type: Number,
+          default: null,
+        },
       },
 
       marks: {
-        x: Number,
-        y: Number,
+        x: {
+          type: Number,
+          default: null,
+        },
+        y: {
+          type: Number,
+          default: null,
+        },
       },
 
       grade: {
-        x: Number,
-        y: Number,
+        x: {
+          type: Number,
+          default: null,
+        },
+        y: {
+          type: Number,
+          default: null,
+        },
       },
 
       attendance: {
-        x: Number,
-        y: Number,
+        x: {
+          type: Number,
+          default: null,
+        },
+        y: {
+          type: Number,
+          default: null,
+        },
       },
 
       duration: {
-        x: Number,
-        y: Number,
+        x: {
+          type: Number,
+          default: null,
+        },
+        y: {
+          type: Number,
+          default: null,
+        },
       },
 
       performance: {
-        x: Number,
-        y: Number,
+        x: {
+          type: Number,
+          default: null,
+        },
+        y: {
+          type: Number,
+          default: null,
+        },
       },
 
       feedback: {
-        x: Number,
-        y: Number,
+        x: {
+          type: Number,
+          default: null,
+        },
+        y: {
+          type: Number,
+          default: null,
+        },
       },
 
       issueDate: {
-        x: Number,
-        y: Number,
+        x: {
+          type: Number,
+          default: null,
+        },
+        y: {
+          type: Number,
+          default: null,
+        },
       },
 
       reportId: {
-        x: Number,
-        y: Number,
+        x: {
+          type: Number,
+          default: null,
+        },
+        y: {
+          type: Number,
+          default: null,
+        },
       },
 
       instructorName: {
-        x: Number,
-        y: Number,
+        x: {
+          type: Number,
+          default: null,
+        },
+        y: {
+          type: Number,
+          default: null,
+        },
       },
-
     },
 
+    // =====================================================
+    // APPROVAL
+    // =====================================================
 
     requiresApproval: {
       type: Boolean,
       default: true,
     },
 
+    // =====================================================
+    // ACTIVE / INACTIVE
+    // =====================================================
 
     isActive: {
       type: Boolean,
       default: true,
     },
 
+    // =====================================================
+    // CREATED BY
+    // =====================================================
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
     },
-
   },
-
   {
     timestamps: true,
   }
-
 );
-
 
 export default mongoose.model(
   "ReportTemplate",

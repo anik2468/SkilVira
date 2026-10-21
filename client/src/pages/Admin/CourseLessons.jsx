@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FiArrowLeft,
   FiBookOpen,
@@ -21,12 +21,17 @@ import {
   createLesson,
   getCourseLessons,
 } from "../../services/lessonService";
+import api from "../../services/api";
 
 const GOLD = "#D4AF37";
 
 const CourseLessons = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const liveClassBasePath = location.pathname.startsWith("/control")
+    ? "/control/live-class/"
+    : "/employee/live-class/";
 
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +48,42 @@ const CourseLessons = () => {
     duration: "",
     order: 0,
   });
+
+  const [videoSource, setVideoSource] = useState("link");
+  const [videoFile, setVideoFile] = useState(null);
+  const [videoInputKey, setVideoInputKey] = useState(0);
+
+  const [liveClasses, setLiveClasses] = useState([]);
+  const [liveClassTitle, setLiveClassTitle] = useState("");
+  const [liveClassDescription, setLiveClassDescription] = useState("");
+  const [liveClassScheduledAt, setLiveClassScheduledAt] = useState("");
+  const [liveClassDuration, setLiveClassDuration] = useState(60);
+  const [liveClassSubmitting, setLiveClassSubmitting] = useState(false);
+  const [liveClassError, setLiveClassError] = useState("");
+  const [liveClassMessage, setLiveClassMessage] = useState("");
+
+
+  const [assessmentForm, setAssessmentForm] = useState({
+    lessonId: "",
+    title: "",
+    type: "quiz",
+    description: "",
+    durationMinutes: 15,
+    negativeMarking: 0,
+    maxAttempts: 1,
+    totalMarks: 10,
+  });
+  const [assessmentQuestions, setAssessmentQuestions] = useState([
+    {
+      prompt: "",
+      type: "mcq",
+      optionsText: "Option A\\nOption B\\nOption C\\nOption D",
+      correctAnswersText: "",
+      marks: 1,
+    },
+  ]);
+  const [assessmentSaving, setAssessmentSaving] = useState(false);
+
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -115,9 +156,106 @@ const CourseLessons = () => {
     setSuccess("");
   };
 
+
+  const loadLiveClasses = async () => {
+    try {
+      const { data } = await api.get(`/live-classes/course/${id}`);
+      setLiveClasses(Array.isArray(data?.classes) ? data.classes : []);
+      setLiveClassError("");
+    } catch (err) {
+      setLiveClasses([]);
+      setLiveClassError(
+        err?.response?.data?.message ||
+        "Unable to load live classes for this course."
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (id) loadLiveClasses();
+  }, [id]);
+
+  const submitLiveClass = async () => {
+    if (!liveClassTitle.trim() || !liveClassScheduledAt) {
+      setLiveClassError("Enter a class title and date/time.");
+      return;
+    }
+
+    const scheduledDate = new Date(liveClassScheduledAt);
+    if (Number.isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
+      setLiveClassError("Choose a future date and time.");
+      return;
+    }
+
+    try {
+      setLiveClassSubmitting(true);
+      setLiveClassError("");
+      setLiveClassMessage("");
+
+      const { data } = await api.post(`/live-classes/course/${id}`, {
+        title: liveClassTitle.trim(),
+        description: liveClassDescription.trim(),
+        scheduledAt: scheduledDate.toISOString(),
+        durationMinutes: Number(liveClassDuration),
+      });
+
+      if (!data?.success) {
+        throw new Error(data?.message || "Unable to schedule live class.");
+      }
+
+      setLiveClassTitle("");
+      setLiveClassDescription("");
+      setLiveClassScheduledAt("");
+      setLiveClassDuration(60);
+      setLiveClassMessage("Live class scheduled successfully.");
+      await loadLiveClasses();
+    } catch (err) {
+      setLiveClassError(
+        err?.response?.data?.message ||
+        err?.message ||
+        "Unable to schedule live class."
+      );
+    } finally {
+      setLiveClassSubmitting(false);
+    }
+  };
+
+  const openLiveClass = async (liveClass) => {
+    try {
+      setLiveClassError("");
+      if (liveClass.status === "scheduled") {
+        const { data } = await api.post(`/live-classes/${liveClass._id}/start`);
+        if (!data?.success) {
+          throw new Error(data?.message || "Unable to start class.");
+        }
+      } else if (liveClass.status !== "live") {
+        return;
+      }
+
+      navigate(`${liveClassBasePath}${liveClass._id}`);
+    } catch (err) {
+      setLiveClassError(
+        err?.response?.data?.message ||
+        err?.message ||
+        "Unable to open live classroom."
+      );
+      await loadLiveClasses();
+    }
+  };
+
   const submitLesson = async () => {
     if (!form.title.trim()) {
       setError("Lesson title is required.");
+      return;
+    }
+
+    if (!String(form.notesUrl || "").trim()) {
+      setError("Notes are required. Please add the notes URL.");
+      return;
+    }
+
+    if (videoSource === "upload" && !videoFile) {
+      setError("Choose a video file or select No Video.");
       return;
     }
 
@@ -131,12 +269,31 @@ const CourseLessons = () => {
       setError("");
       setSuccess("");
 
+      let uploadedVideoUrl = "";
+
+      if (videoSource === "link") {
+        uploadedVideoUrl = form.videoUrl.trim();
+      } else if (videoSource === "upload" && videoFile) {
+        const videoData = new FormData();
+        videoData.append("video", videoFile);
+
+        const { data: uploadResult } = await api.post(
+          "/upload/course-video",
+          videoData
+        );
+
+        uploadedVideoUrl = uploadResult?.url || "";
+
+        if (!uploadedVideoUrl) {
+          throw new Error("Video upload did not return a file URL.");
+        }
+      }
+
       await createLesson({
         title: form.title.trim(),
         description:
           form.description.trim(),
-        videoUrl:
-          form.videoUrl.trim(),
+        videoUrl: uploadedVideoUrl,
         notesUrl:
           form.notesUrl.trim(),
         duration:
@@ -154,6 +311,10 @@ const CourseLessons = () => {
         order:
           lessons.length + 1,
       });
+
+      setVideoFile(null);
+      setVideoSource("link");
+      setVideoInputKey((value) => value + 1);
 
       setSuccess(
         "Lesson added successfully."
@@ -177,6 +338,125 @@ const CourseLessons = () => {
       );
     } finally {
       setSubmitting(false);
+    }
+  };
+
+
+  const submitAssessment = async () => {
+    const lessonId = assessmentForm.lessonId;
+    const title = assessmentForm.title.trim();
+
+    if (!lessonId || !title) {
+      setError("Select a lesson and enter an assessment title.");
+      return;
+    }
+
+    if (assessmentForm.type === "assignment") {
+      const totalMarks = Number(assessmentForm.totalMarks);
+      if (!Number.isFinite(totalMarks) || totalMarks <= 0) {
+        setError("Assignment total marks must be greater than zero.");
+        return;
+      }
+    }
+
+    let questions = [];
+    let calculatedTotal = 0;
+
+    if (assessmentForm.type !== "assignment") {
+      questions = assessmentQuestions.map((question) => {
+        const options = question.type === "fill_blank"
+          ? []
+          : question.optionsText.split("\\n").map((item) => item.trim()).filter(Boolean);
+
+        const correctAnswers = question.correctAnswersText
+          .split("\\n")
+          .map((item) => item.trim())
+          .filter(Boolean);
+
+        const marks = Number(question.marks);
+        calculatedTotal += Number.isFinite(marks) ? marks : 0;
+
+        return {
+          prompt: question.prompt.trim(),
+          type: question.type,
+          options,
+          correctAnswers,
+          marks,
+        };
+      });
+
+      const invalidQuestion = questions.some((question) =>
+        !question.prompt ||
+        !question.correctAnswers.length ||
+        !Number.isFinite(question.marks) ||
+        question.marks <= 0 ||
+        (question.type === "mcq" &&
+          (question.options.length < 2 || question.correctAnswers.length !== 1)) ||
+        (question.type === "multiple_select" &&
+          (question.options.length < 2 ||
+            question.correctAnswers.some((answer) => !question.options.includes(answer)))) ||
+        (question.type === "mcq" &&
+          !question.options.includes(question.correctAnswers[0]))
+      );
+
+      if (invalidQuestion) {
+        setError(
+          "Check every question: add question text, valid options, correct answer(s), and positive marks."
+        );
+        return;
+      }
+    }
+
+    const payload = {
+      title,
+      type: assessmentForm.type,
+      description: assessmentForm.description.trim(),
+      durationMinutes: Number(assessmentForm.durationMinutes) || 0,
+      negativeMarking: Number(assessmentForm.negativeMarking) || 0,
+      maxAttempts: Number(assessmentForm.maxAttempts) || 1,
+      totalMarks: assessmentForm.type === "assignment"
+        ? Number(assessmentForm.totalMarks)
+        : calculatedTotal,
+      questions,
+    };
+
+    try {
+      setAssessmentSaving(true);
+      setError("");
+      setSuccess("");
+
+      const { data } = await api.post(
+        `/lessons/${lessonId}/assessments`,
+        payload
+      );
+
+      setSuccess(data?.message || "Assessment created successfully.");
+      setAssessmentForm((previous) => ({
+        ...previous,
+        title: "",
+        description: "",
+        type: "quiz",
+        totalMarks: 10,
+      }));
+      setAssessmentQuestions([
+        {
+          prompt: "",
+          type: "mcq",
+          optionsText: "Option A\\\\nOption B\\\\nOption C\\\\nOption D",
+          correctAnswersText: "",
+          marks: 1,
+        },
+      ]);
+
+      await loadLessons(true);
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+        err?.message ||
+        "Unable to create assessment."
+      );
+    } finally {
+      setAssessmentSaving(false);
     }
   };
 
@@ -287,6 +567,144 @@ const CourseLessons = () => {
           </div>
         </section>
 
+
+        {/* LIVE CLASS STUDIO */}
+        <section className="space-y-5 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#9B7B16]">
+                Interactive classroom
+              </p>
+              <h2 className="mt-2 text-2xl font-black text-gray-950">
+                Live Class Studio
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
+                Schedule an online class, teach inside SkilVira, interact with students
+                through live chat, and launch MCQ quizzes during the session.
+              </p>
+            </div>
+            <span className="rounded-full bg-[#D4AF37]/15 px-3 py-1.5 text-xs font-bold text-[#80620D]">
+              LiveKit Classroom
+            </span>
+          </div>
+
+          {liveClassError && (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {liveClassError}
+            </div>
+          )}
+          {liveClassMessage && (
+            <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+              {liveClassMessage}
+            </div>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-1.5 text-sm font-semibold text-gray-800">
+              Class title
+              <input
+                value={liveClassTitle}
+                onChange={(event) => setLiveClassTitle(event.target.value)}
+                maxLength={160}
+                placeholder="e.g. React Hooks — Live Session"
+                className="w-full rounded-xl border border-gray-200 px-3 py-3 outline-none focus:border-[#D4AF37]"
+              />
+            </label>
+            <label className="space-y-1.5 text-sm font-semibold text-gray-800">
+              Date and time
+              <input
+                type="datetime-local"
+                value={liveClassScheduledAt}
+                onChange={(event) => setLiveClassScheduledAt(event.target.value)}
+                className="w-full rounded-xl border border-gray-200 px-3 py-3 outline-none focus:border-[#D4AF37]"
+              />
+            </label>
+            <label className="space-y-1.5 text-sm font-semibold text-gray-800">
+              Duration
+              <select
+                value={liveClassDuration}
+                onChange={(event) => setLiveClassDuration(Number(event.target.value))}
+                className="w-full rounded-xl border border-gray-200 px-3 py-3 outline-none focus:border-[#D4AF37]"
+              >
+                <option value={30}>30 minutes</option>
+                <option value={45}>45 minutes</option>
+                <option value={60}>60 minutes</option>
+                <option value={90}>90 minutes</option>
+                <option value={120}>120 minutes</option>
+              </select>
+            </label>
+            <label className="space-y-1.5 text-sm font-semibold text-gray-800">
+              Description (optional)
+              <input
+                value={liveClassDescription}
+                onChange={(event) => setLiveClassDescription(event.target.value)}
+                maxLength={2000}
+                placeholder="Topics covered in the session"
+                className="w-full rounded-xl border border-gray-200 px-3 py-3 outline-none focus:border-[#D4AF37]"
+              />
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onClick={submitLiveClass}
+            disabled={liveClassSubmitting}
+            className="rounded-xl bg-[#D4AF37] px-5 py-3 font-black text-gray-950 transition hover:bg-[#c6a027] disabled:opacity-60"
+          >
+            {liveClassSubmitting ? "Scheduling..." : "Schedule Live Class"}
+          </button>
+
+          <div className="border-t border-gray-100 pt-5">
+            <h3 className="text-lg font-black text-gray-950">Scheduled Sessions</h3>
+            {liveClasses.length === 0 ? (
+              <p className="mt-3 rounded-xl bg-gray-50 p-4 text-sm text-gray-600">
+                No live classes scheduled for this course yet.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {liveClasses.map((liveClass) => (
+                  <div
+                    key={liveClass._id}
+                    className="flex flex-col gap-3 rounded-2xl border border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold text-gray-950">{liveClass.title}</p>
+                      <p className="mt-1 text-sm text-gray-600">
+                        {new Date(liveClass.scheduledAt).toLocaleString()} · {liveClass.durationMinutes} min
+                      </p>
+                      <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                        liveClass.status === "live"
+                          ? "bg-red-100 text-red-700"
+                          : liveClass.status === "ended"
+                            ? "bg-gray-100 text-gray-600"
+                            : "bg-blue-50 text-blue-700"
+                      }`}>
+                        {liveClass.status === "live" ? "LIVE NOW" : liveClass.status.toUpperCase()}
+                      </span>
+                    </div>
+                    {liveClass.status !== "ended" && (
+                      <button
+                        type="button"
+                        onClick={() => openLiveClass(liveClass)}
+                        className="shrink-0 rounded-xl bg-gray-950 px-4 py-3 text-sm font-bold text-white hover:bg-gray-800"
+                      >
+                        {liveClass.status === "live" ? "Open Classroom" : "Start & Open Classroom"}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={loadLiveClasses}
+              className="mt-3 text-sm font-semibold text-[#80620D] hover:underline"
+            >
+              Refresh sessions
+            </button>
+          </div>
+        </section>
+
         {/* ALERTS */}
         {error && (
           <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm font-semibold text-red-700">
@@ -386,14 +804,60 @@ const CourseLessons = () => {
                 />
               </div>
 
-              <Field
-                label="Video URL"
-                name="videoUrl"
-                value={form.videoUrl}
-                onChange={handleChange}
-                placeholder="https://..."
-                icon={<FiVideo />}
-              />
+              <div className="space-y-3">
+                <label className="block text-sm font-bold text-gray-800">
+                  Video (optional)
+                </label>
+
+                <select
+                  value={videoSource}
+                  onChange={(event) => setVideoSource(event.target.value)}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+                >
+                  <option value="link">YouTube / video link</option>
+                  <option value="upload">Upload video file</option>
+                  <option value="none">No video</option>
+                </select>
+
+                {videoSource === "link" && (
+                  <Field
+                    label="Video URL"
+                    name="videoUrl"
+                    value={form.videoUrl}
+                    onChange={handleChange}
+                    placeholder="Paste YouTube or supported video URL"
+                    icon={<FiVideo />}
+                  />
+                )}
+
+                {videoSource === "upload" && (
+                  <div className="space-y-2">
+                    <input
+                      key={videoInputKey}
+                      type="file"
+                      accept="video/mp4,video/webm,video/quicktime"
+                      onChange={(event) =>
+                        setVideoFile(event.target.files?.[0] || null)
+                      }
+                      className="block w-full rounded-xl border border-gray-200 bg-white p-3 text-sm"
+                    />
+                    <p className="text-xs text-gray-500">
+                      MP4, WEBM or MOV · Maximum 500 MB
+                    </p>
+                    {videoFile && (
+                      <p className="text-sm text-green-700">
+                        Selected: {videoFile.name}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {videoSource === "none" && (
+                  <p className="rounded-xl bg-gray-50 p-3 text-sm text-gray-600">
+                    This lesson will contain notes without a video.
+                  </p>
+                )}
+              </div>
 
               <Field
                 label="Notes URL"
@@ -525,8 +989,440 @@ const CourseLessons = () => {
             )}
           </section>
         </div>
+
+        {/* ASSESSMENT BUILDER */}
+        <section className="rounded-[30px] border border-gray-200 bg-white p-6 shadow-sm sm:p-7">
+          <div className="mb-6">
+            <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: GOLD }}>
+              Assessment Builder
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-gray-950">
+              Create Assignment, Quiz or Test
+            </h2>
+            <p className="mt-2 text-sm text-gray-500">
+              Add questions, answer keys and marks to a lesson.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-bold text-gray-800">Lesson</label>
+              <select
+                value={assessmentForm.lessonId}
+                onChange={(event) => setAssessmentForm((p) => ({ ...p, lessonId: event.target.value }))}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+                required
+              >
+                <option value="">Select lesson</option>
+                {lessons.map((lesson) => (
+                  <option key={lesson._id} value={lesson._id}>{lesson.title}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-bold text-gray-800">Assessment Type</label>
+              <select
+                value={assessmentForm.type}
+                onChange={(event) => setAssessmentForm((p) => ({ ...p, type: event.target.value }))}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+              >
+                <option value="assignment">Assignment</option>
+                <option value="quiz">Quiz</option>
+                <option value="test">Test / Exam</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-bold text-gray-800">Title</label>
+              <input
+                value={assessmentForm.title}
+                onChange={(event) => setAssessmentForm((p) => ({ ...p, title: event.target.value }))}
+                placeholder="e.g. HTML Basics Quiz"
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+              />
+            </div>
+
+            {assessmentForm.type === "assignment" && (
+              <div>
+                <label className="mb-2 block text-sm font-bold text-gray-800">Total Marks</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={assessmentForm.totalMarks}
+                  onChange={(event) => setAssessmentForm((p) => ({ ...p, totalMarks: event.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="mb-2 block text-sm font-bold text-gray-800">Duration (minutes)</label>
+              <input
+                type="number"
+                min="0"
+                value={assessmentForm.durationMinutes}
+                onChange={(event) => setAssessmentForm((p) => ({ ...p, durationMinutes: event.target.value }))}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-bold text-gray-800">Maximum Attempts</label>
+              <input
+                type="number"
+                min="1"
+                value={assessmentForm.maxAttempts}
+                onChange={(event) => setAssessmentForm((p) => ({ ...p, maxAttempts: event.target.value }))}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-bold text-gray-800">Negative Marks per Wrong Answer</label>
+              <input
+                type="number"
+                min="0"
+                step="0.25"
+                value={assessmentForm.negativeMarking}
+                onChange={(event) => setAssessmentForm((p) => ({ ...p, negativeMarking: event.target.value }))}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label className="mb-2 block text-sm font-bold text-gray-800">
+              Instructions / Description
+            </label>
+            <textarea
+              rows={3}
+              value={assessmentForm.description}
+              onChange={(event) => setAssessmentForm((p) => ({ ...p, description: event.target.value }))}
+              placeholder="Enter instructions for students..."
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+            />
+          </div>
+
+          {assessmentForm.type !== "assignment" && (
+            <div className="mt-6 space-y-4">
+              {assessmentQuestions.map((question, index) => (
+                <div key={index} className="rounded-2xl border border-gray-200 bg-[#FAFAF8] p-4 sm:p-5">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <h3 className="font-black text-gray-900">Question {index + 1}</h3>
+                    {assessmentQuestions.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setAssessmentQuestions((list) => list.filter((_, i) => i !== index))}
+                        className="text-sm font-bold text-red-600"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="md:col-span-2">
+                      <label className="mb-2 block text-sm font-bold text-gray-800">Question Text</label>
+                      <textarea
+                        rows={2}
+                        value={question.prompt}
+                        onChange={(event) => setAssessmentQuestions((list) => list.map((q, i) => i === index ? { ...q, prompt: event.target.value } : q))}
+                        placeholder="Write your question..."
+                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-gray-800">Question Format</label>
+                      <select
+                        value={question.type}
+                        onChange={(event) => setAssessmentQuestions((list) => list.map((q, i) => i === index ? { ...q, type: event.target.value } : q))}
+                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+                      >
+                        <option value="mcq">MCQ — Single Answer</option>
+                        <option value="multiple_select">Multiple Select</option>
+                        <option value="fill_blank">Fill in the Blanks</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-gray-800">Marks</label>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.25"
+                        value={question.marks}
+                        onChange={(event) => setAssessmentQuestions((list) => list.map((q, i) => i === index ? { ...q, marks: event.target.value } : q))}
+                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+                      />
+                    </div>
+
+                    {question.type !== "fill_blank" && (
+                      <div>
+                        <label className="mb-2 block text-sm font-bold text-gray-800">Options (one per line)</label>
+                        <textarea
+                          rows={4}
+                          value={question.optionsText}
+                          onChange={(event) => setAssessmentQuestions((list) => list.map((q, i) => i === index ? { ...q, optionsText: event.target.value } : q))}
+                          placeholder={"Option A\nOption B\nOption C\nOption D"}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-gray-800">
+                        Correct Answer(s) — one per line
+                      </label>
+                      <textarea
+                        rows={question.type === "multiple_select" ? 3 : 2}
+                        value={question.correctAnswersText}
+                        onChange={(event) => setAssessmentQuestions((list) => list.map((q, i) => i === index ? { ...q, correctAnswersText: event.target.value } : q))}
+                        placeholder={question.type === "fill_blank" ? "Expected answer" : question.type === "multiple_select" ? "Choose every correct option, each on a new line" : "Exact option text"}
+                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => setAssessmentQuestions((list) => [...list, {
+                  prompt: "",
+                  type: "mcq",
+                  optionsText: "Option A\\\\nOption B\\\\nOption C\\\\nOption D",
+                  correctAnswersText: "",
+                  marks: 1,
+                }])}
+                className="rounded-xl border border-dashed border-gray-300 px-4 py-3 text-sm font-bold text-gray-700 hover:border-[#D4AF37]"
+              >
+                + Add Another Question
+              </button>
+
+              <p className="text-sm font-black text-gray-800">
+                Calculated Total Marks: {assessmentQuestions.reduce((sum, q) => sum + (Number(q.marks) > 0 ? Number(q.marks) : 0), 0)}
+              </p>
+            </div>
+          )}
+
+          <button
+            type="button"
+            disabled={assessmentSaving || lessons.length === 0}
+            onClick={submitAssessment}
+            className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-[#D4AF37] px-5 py-3 font-black text-black disabled:opacity-50"
+          >
+            {assessmentSaving ? "Saving..." : "Create Assessment"}
+          </button>
+        </section>
+
+        <AssessmentGradingPanel
+          lessons={lessons}
+          onGraded={() => loadLessons(true)}
+        />
+
       </div>
     </div>
+  );
+};
+
+const AssessmentGradingPanel = ({ lessons, onGraded }) => {
+  const [grades, setGrades] = useState({});
+  const [saving, setSaving] = useState("");
+  const [messages, setMessages] = useState({});
+
+  const pending = [];
+  (lessons || []).forEach((lesson) => {
+    (lesson.assessments || []).forEach((assessment) => {
+      if (assessment.type !== "assignment") return;
+      (assessment.attempts || []).forEach((attempt) => {
+        if (attempt.status !== "graded") {
+          pending.push({ lesson, assessment, attempt });
+        }
+      });
+    });
+  });
+
+  const saveGrade = async (item) => {
+    const { lesson, assessment, attempt } = item;
+    const key = String(attempt._id);
+    const form = grades[key] || {};
+    const score = Number(form.score);
+    const maxMarks = Number(
+      attempt.maxMarks ?? assessment.totalMarks ?? 0
+    );
+
+    if (form.score === undefined || form.score === "" ||
+        !Number.isFinite(score) || score < 0 || score > maxMarks) {
+      setMessages((prev) => ({
+        ...prev,
+        [key]: { error: `Enter marks from 0 to ${maxMarks}.` },
+      }));
+      return;
+    }
+
+    setSaving(key);
+    setMessages((prev) => ({ ...prev, [key]: null }));
+
+    try {
+      await api.patch(
+        `/lessons/${lesson._id}/assessments/${assessment._id}/attempts/${attempt._id}/grade`,
+        {
+          score,
+          feedback: form.feedback || "",
+        }
+      );
+
+      setMessages((prev) => ({
+        ...prev,
+        [key]: { success: "Grade saved successfully." },
+      }));
+      await onGraded();
+    } catch (error) {
+      setMessages((prev) => ({
+        ...prev,
+        [key]: {
+          error:
+            error?.response?.data?.message ||
+            error?.response?.data?.error ||
+            "Could not save grade. Please try again.",
+        },
+      }));
+    } finally {
+      setSaving("");
+    }
+  };
+
+  const updateField = (key, field, value) => {
+    setGrades((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], [field]: value },
+    }));
+  };
+
+  return (
+    <section className="mt-6 rounded-[30px] border border-gray-200 bg-white p-6 shadow-sm sm:p-7">
+      <p className="text-xs font-black uppercase tracking-[0.18em] text-[#B99520]">
+        Employee Grading
+      </p>
+      <h2 className="mt-1 text-2xl font-black text-gray-950">
+        Assignment Submissions
+      </h2>
+      <p className="mt-2 text-sm text-gray-500">
+        Review student work, assign marks and provide feedback.
+      </p>
+
+      {pending.length === 0 ? (
+        <div className="mt-5 rounded-xl bg-gray-50 p-5 text-sm text-gray-600">
+          No pending assignment submissions.
+        </div>
+      ) : (
+        <div className="mt-5 space-y-4">
+          {pending.map(({ lesson, assessment, attempt }) => {
+            const key = String(attempt._id);
+            const student = attempt.user;
+            const studentLabel =
+              typeof student === "object" && student
+                ? student.name || student.email || student._id || "Student"
+                : student || "Student";
+
+            const maxMarks = Number(
+              attempt.maxMarks ?? assessment.totalMarks ?? 0
+            );
+
+            return (
+              <div
+                key={key}
+                className="rounded-2xl border border-gray-200 p-4 sm:p-5"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-black text-gray-900">
+                      {assessment.title}
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-600">
+                      Lesson: {lesson.title}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Student: {String(studentLabel)}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800">
+                    Pending grading
+                  </span>
+                </div>
+
+                <div className="mt-4 rounded-xl bg-gray-50 p-4">
+                  <p className="mb-2 text-xs font-black uppercase tracking-wide text-gray-500">
+                    Student submission
+                  </p>
+                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-gray-800">
+                    {attempt.submissionText || "No text submission provided."}
+                  </p>
+                  {attempt.submittedAt && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Submitted: {new Date(attempt.submittedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="block text-sm font-bold text-gray-800">
+                    Marks (out of {maxMarks})
+                    <input
+                      type="number"
+                      min="0"
+                      max={maxMarks}
+                      step="0.5"
+                      value={grades[key]?.score ?? ""}
+                      onChange={(event) =>
+                        updateField(key, "score", event.target.value)
+                      }
+                      className="mt-2 w-full rounded-xl border border-gray-200 bg-[#FAFAF8] px-4 py-3 font-medium outline-none focus:border-[#D4AF37]"
+                      placeholder={`0–${maxMarks}`}
+                    />
+                  </label>
+
+                  <label className="block text-sm font-bold text-gray-800">
+                    Feedback
+                    <textarea
+                      rows={3}
+                      value={grades[key]?.feedback ?? ""}
+                      onChange={(event) =>
+                        updateField(key, "feedback", event.target.value)
+                      }
+                      className="mt-2 w-full rounded-xl border border-gray-200 bg-[#FAFAF8] px-4 py-3 font-medium outline-none focus:border-[#D4AF37]"
+                      placeholder="Feedback for the student (optional)"
+                    />
+                  </label>
+                </div>
+
+                {messages[key]?.error && (
+                  <p role="alert" className="mt-3 text-sm text-red-600">
+                    {messages[key].error}
+                  </p>
+                )}
+                {messages[key]?.success && (
+                  <p className="mt-3 text-sm font-semibold text-green-700">
+                    {messages[key].success}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => saveGrade({ lesson, assessment, attempt })}
+                  disabled={saving === key}
+                  className="mt-4 rounded-xl bg-[#D4AF37] px-5 py-3 text-sm font-black text-black disabled:opacity-50"
+                >
+                  {saving === key ? "Saving grade..." : "Save Grade"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 };
 

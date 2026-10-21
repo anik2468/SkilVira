@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 import {
   FiCreditCard,
@@ -16,7 +17,7 @@ import {
 
 import api from "../../services/api";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = API_ORIGIN;
 
 const Payments = () => {
   const [payments, setPayments] = useState([]);

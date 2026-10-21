@@ -1,105 +1,99 @@
 import express from "express";
 
-
 import {
-
-createGeneratedCertificate,
-
-getPendingCertificates,
-
-updateCertificateDetails,
-
-approveCertificate,
-
-rejectCertificate
-
-}
-
-from "../controllers/generatedCertificateController.js";
-
-
+  createGeneratedCertificate,
+  getPendingCertificates,
+  getGeneratedCertificateById,
+  updateCertificateDetails,
+  requestCertificateRevision,
+  approveCertificate,
+  rejectCertificate,
+  verifyCertificatePublic,
+} from "../controllers/generatedCertificateController.js";
 
 import auth from "../middleware/auth.js";
 
+const router =
+  express.Router();
 
-
-const router = express.Router();
-
-
-
-
-// Create Certificate Generation Request
-
-router.post(
-
-"/generate",
-
-auth,
-
-createGeneratedCertificate
-
-);
-
-
-
-
-// Employee Verification Queue
+// =====================================================
+// PUBLIC VERIFICATION
+// IMPORTANT: BEFORE /:id
+// =====================================================
 
 router.get(
-
-"/pending",
-
-auth,
-
-getPendingCertificates
-
+  "/verify/:credentialId",
+  verifyCertificatePublic
 );
 
+// =====================================================
+// GENERATE
+// =====================================================
 
+router.post(
+  "/generate",
+  auth,
+  createGeneratedCertificate
+);
 
+// =====================================================
+// EMPLOYEE PENDING
+// =====================================================
 
-// Employee Edit Certificate Data
+router.get(
+  "/pending",
+  auth,
+  getPendingCertificates
+);
+
+// =====================================================
+// SINGLE
+// =====================================================
+
+router.get(
+  "/:id",
+  auth,
+  getGeneratedCertificateById
+);
+
+// =====================================================
+// UPDATE
+// =====================================================
 
 router.put(
-
-"/:id/update",
-
-auth,
-
-updateCertificateDetails
-
+  "/:id/update",
+  auth,
+  updateCertificateDetails
 );
 
-
-
-
-// Approve
+// =====================================================
+// REVISION
+// =====================================================
 
 router.put(
-
-"/:id/approve",
-
-auth,
-
-approveCertificate
-
+  "/:id/revision",
+  auth,
+  requestCertificateRevision
 );
 
-
-
-
-// Reject
+// =====================================================
+// APPROVE
+// =====================================================
 
 router.put(
-
-"/:id/reject",
-
-auth,
-
-rejectCertificate
-
+  "/:id/approve",
+  auth,
+  approveCertificate
 );
 
+// =====================================================
+// REJECT
+// =====================================================
 
+router.put(
+  "/:id/reject",
+  auth,
+  rejectCertificate
+);
 
 export default router;

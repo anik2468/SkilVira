@@ -79,6 +79,7 @@ const notificationSchema = new mongoose.Schema(
         "GeneratedReport",
         "Application",
         "Course",
+        "LiveClass",
         "Internship",
         null,
       ],

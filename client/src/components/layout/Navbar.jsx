@@ -3,6 +3,8 @@ import { useState } from "react";
 
 import {
   FiArrowRight,
+  FiBookOpen,
+  FiMessageCircle,
   FiBriefcase,
   FiHome,
   FiInfo,
@@ -12,31 +14,10 @@ import {
 } from "react-icons/fi";
 
 const navItems = [
-  {
-    label: "Home",
-    to: "/",
-    icon: <FiHome />,
-  },
-  {
-    label: "Internships",
-    to: "/",
-    icon: <FiBriefcase />,
-  },
-  {
-    label: "Companies",
-    to: "/",
-    icon: <FiBriefcase />,
-  },
-  {
-    label: "Colleges",
-    to: "/",
-    icon: <FiUsers />,
-  },
-  {
-    label: "About",
-    to: "/",
-    icon: <FiInfo />,
-  },
+  { label: "Home", to: "/", icon: <FiHome /> },
+  { label: "Courses", to: "/courses", icon: <FiBookOpen /> },
+  { label: "Internships", to: "/internships", icon: <FiBriefcase /> },
+  { label: "Contact & Support", to: "/contact", icon: <FiMessageCircle /> },
 ];
 
 const Navbar = () => {

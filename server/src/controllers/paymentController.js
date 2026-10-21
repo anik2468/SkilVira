@@ -3,2689 +3,913 @@ import crypto from "crypto";
 import mongoose from "mongoose";
 
 import Payment from "../models/Payment.js";
-import Internship from "../models/Internship.js";
-import Application from "../models/Application.js";
 import Course from "../models/Course.js";
+import Internship from "../models/Internship.js";
 import Enrollment from "../models/Enrollment.js";
 import User from "../models/User.js";
+import Referral from "../models/Referral.js";
 import AmbassadorProfile from "../models/AmbassadorProfile.js";
 
-import OfferLetterTemplate from "../models/OfferLetterTemplate.js";
-import GeneratedOfferLetter from "../models/GeneratedOfferLetter.js";
+const getUserId = (req) =>
+  req.user?.id || req.user?._id || req.user?.userId || null;
 
-import {
-  createNotification,
-} from "../services/notificationService.js";
+const getRole = (req) =>
+  String(req.user?.role || req.user?.userRole || "").toLowerCase();
 
+const isStaff = (req) =>
+  ["employee", "control"].includes(getRole(req));
 
-// =====================================================
-// RAZORPAY
-// KEPT FOR FUTURE / ONLINE PAYMENT
-// =====================================================
+const isValidId = (id) =>
+  mongoose.Types.ObjectId.isValid(String(id || ""));
 
-const razorpay = new Razorpay({
-
-  key_id:
-    process.env.RAZORPAY_KEY_ID,
-
-  key_secret:
-    process.env.RAZORPAY_KEY_SECRET,
-
-});
-
-
-// =====================================================
-// HELPER
-// =====================================================
-
-const getUserId = (req) => {
-
-  return (
-    req.user?.id ||
-    req.user?._id ||
-    req.user?.userId ||
-    null
-  );
-
+const sendError = (res, error, message = "Request failed") => {
+  console.error(`[PAYMENT] ${message}:`, error);
+  return res.status(500).json({
+    success: false,
+    message,
+  });
 };
 
-
-// =====================================================
-// GET ACTIVE OFFER LETTER TEMPLATE
-// =====================================================
-
-const findOfferLetterTemplate = async ({
-  course,
-  internship,
-  session = null,
-}) => {
-
-  let template = null;
-
-
-  // =========================================
-  // INTERNSHIP SPECIFIC
-  // =========================================
-
-  if (internship) {
-
-    let query =
-      OfferLetterTemplate.findOne({
-
-        internshipId:
-          internship,
-
-        isActive:
-          true,
-
-      }).sort({
-
-        createdAt:
-          -1,
-
-      });
-
-
-    if (session) {
-      query = query.session(session);
-    }
-
-
-    template =
-      await query;
-
-
-    if (template) {
-      return template;
-    }
-
+const getProduct = async ({ type, courseId, internshipId }) => {
+  if (type === "course" && isValidId(courseId)) {
+    return Course.findById(courseId);
   }
 
-
-  // =========================================
-  // COURSE SPECIFIC
-  // =========================================
-
-  if (course) {
-
-    let query =
-      OfferLetterTemplate.findOne({
-
-        courseId:
-          course,
-
-        isActive:
-          true,
-
-      }).sort({
-
-        createdAt:
-          -1,
-
-      });
-
-
-    if (session) {
-      query = query.session(session);
-    }
-
-
-    template =
-      await query;
-
-
-    if (template) {
-      return template;
-    }
-
+  if (type === "internship" && isValidId(internshipId)) {
+    return Internship.findById(internshipId);
   }
-
-
-  // =========================================
-  // GENERIC INTERNSHIP
-  // =========================================
-
-  if (internship) {
-
-    let query =
-      OfferLetterTemplate.findOne({
-
-        type:
-          "internship",
-
-        internshipId:
-          null,
-
-        isActive:
-          true,
-
-      }).sort({
-
-        createdAt:
-          -1,
-
-      });
-
-
-    if (session) {
-      query = query.session(session);
-    }
-
-
-    template =
-      await query;
-
-
-    if (template) {
-      return template;
-    }
-
-  }
-
-
-  // =========================================
-  // GENERIC COURSE
-  // =========================================
-
-  if (course) {
-
-    let query =
-      OfferLetterTemplate.findOne({
-
-        type:
-          "course",
-
-        courseId:
-          null,
-
-        isActive:
-          true,
-
-      }).sort({
-
-        createdAt:
-          -1,
-
-      });
-
-
-    if (session) {
-      query = query.session(session);
-    }
-
-
-    template =
-      await query;
-
-
-    if (template) {
-      return template;
-    }
-
-  }
-
 
   return null;
-
 };
 
-
-// =====================================================
-// CREATE OFFER LETTER AFTER PAYMENT APPROVAL
-// =====================================================
-
-const createOfferLetterForPayment = async ({
-  payment,
-  enrollment,
-  session,
-}) => {
-
-  const template =
-    await findOfferLetterTemplate({
-
-      course:
-        payment.course,
-
-      internship:
-        payment.internship,
-
-      session,
-
-    });
-
-
-  // -----------------------------------------
-  // No template
-  // -----------------------------------------
-
-  if (!template) {
-
-    return {
-      offer: null,
-      templateMissing: true,
-    };
-
-  }
-
-
-  // -----------------------------------------
-  // Existing offer
-  // -----------------------------------------
-
-  let offer =
-    await GeneratedOfferLetter.findOne({
-
-      student:
-        payment.student,
-
-      course:
-        payment.course || null,
-
-      internship:
-        payment.internship || null,
-
-    }).session(session);
-
-
-  if (!offer) {
-
-    const student =
-      await User.findById(
-        payment.student
-      )
-        .select(
-          "name email"
-        )
-        .session(session);
-
-
-    let courseData = null;
-
-    let internshipData = null;
-
-
-    // ---------------------------------------
-    // Course
-    // ---------------------------------------
-
-    if (payment.course) {
-
-      courseData =
-        await Course.findById(
-          payment.course
-        )
-          .select(
-            "title duration"
-          )
-          .session(session);
-
-    }
-
-
-    // ---------------------------------------
-    // Internship
-    // ---------------------------------------
-
-    if (payment.internship) {
-
-      internshipData =
-        await Internship.findById(
-          payment.internship
-        )
-          .select(
-            "title company duration location workMode"
-          )
-          .session(session);
-
-    }
-
-
-    const offerId =
-      `OFF-${Date.now()}-${Math.random()
-        .toString(36)
-        .substring(2, 7)
-        .toUpperCase()}`;
-
-
-    const issueDate =
-      new Date()
-        .toISOString()
-        .split("T")[0];
-
-
-    offer =
-      new GeneratedOfferLetter({
-
-        student:
-          payment.student,
-
-        course:
-          payment.course ||
-          null,
-
-        internship:
-          payment.internship ||
-          null,
-
-        template:
-          template._id,
-
-        data: {
-
-          studentName:
-            student?.name || "",
-
-          role:
-            "",
-
-          companyName:
-            internshipData?.company || "",
-
-          duration:
-            internshipData?.duration ||
-            courseData?.duration ||
-            "",
-
-          joiningDate:
-            issueDate,
-
-          endDate:
-            "",
-
-          stipend:
-            "",
-
-          location:
-            internshipData?.location ||
-            "",
-
-          workMode:
-            internshipData?.workMode ||
-            "",
-
-          offerId,
-
-          issueDate,
-
-          reportingManager:
-            "",
-
-        },
-
-        status:
-          "pending",
-
-      });
-
-
-    await offer.save({
-      session,
-    });
-
-  }
-
-
-  // -----------------------------------------
-  // Link to enrollment
-  // -----------------------------------------
-
-  enrollment.offerLetter =
-    offer._id;
-
-  enrollment.offerLetterGenerated =
-    true;
-
-
-  await enrollment.save({
-    session,
-  });
-
-
-  // -----------------------------------------
-  // Link to payment
-  // -----------------------------------------
-
-  payment.offerLetter =
-    offer._id;
-
-  payment.offerLetterGenerated =
-    true;
-
-
-  await payment.save({
-    session,
-  });
-
-
-  return {
-    offer,
-    templateMissing: false,
-  };
-
-};
-
-
-// =====================================================
-// COMMON PAYMENT APPROVAL PROCESS
-// USED BY MANUAL + RAZORPAY
-// =====================================================
-
-const activateApprovedPayment = async ({
-  paymentId,
-  verifiedBy,
-  session,
-}) => {
-
-  const payment =
-    await Payment.findOne({
-
-      _id:
-        paymentId,
-
-      isDeleted:
-        false,
-
-    }).session(session);
-
-
-  if (!payment) {
-
-    const error =
-      new Error(
-        "Payment not found."
-      );
-
-    error.statusCode =
-      404;
-
-    throw error;
-
-  }
-
-
-  if (
-    payment.status ===
-    "approved"
-  ) {
-
-    const error =
-      new Error(
-        "Payment is already approved."
-      );
-
-    error.statusCode =
-      400;
-
-    throw error;
-
-  }
-
-
-  if (
-    payment.status ===
-    "rejected"
-  ) {
-
-    const error =
-      new Error(
-        "Rejected payment cannot be approved directly."
-      );
-
-    error.statusCode =
-      400;
-
-    throw error;
-
-  }
-
-
-  // =========================================
-  // ENROLLMENT
-  // =========================================
-
-  let enrollment =
-    await Enrollment.findOne({
-
-      student:
-        payment.student,
-
-      course:
-        payment.course ||
-        null,
-
-      internship:
-        payment.internship ||
-        null,
-
-      isDeleted:
-        false,
-
-    }).session(session);
-
-
-  if (
-    enrollment &&
-    enrollment.status ===
-      "Active"
-  ) {
-
-    const error =
-      new Error(
-        "Student is already enrolled in this program."
-      );
-
-    error.statusCode =
-      409;
-
-    throw error;
-
-  }
-
-
-  // =========================================
-  // PAYMENT APPROVED
-  // =========================================
-
-  payment.status =
-    "approved";
-
-  payment.verifiedBy =
-    verifiedBy;
-
-  payment.verifiedAt =
-    new Date();
-
-  payment.rejectionReason =
-    "";
-
-
-  await payment.save({
-    session,
-  });
-
-
-  // =========================================
-  // ENROLLMENT CREATE / RESTORE
-  // =========================================
+const createOrGetEnrollment = async (payment, session) => {
+  let enrollment = await Enrollment.findOne({
+    payment: payment._id,
+    isDeleted: { $ne: true },
+  }).session(session);
+
+  let created = false;
 
   if (!enrollment) {
-
-    enrollment =
-      new Enrollment({
-
-        student:
-          payment.student,
-
-        course:
-          payment.course ||
-          null,
-
-        internship:
-          payment.internship ||
-          null,
-
-        payment:
-          payment._id,
-
-        enrollmentDate:
-          new Date(),
-
-        startDate:
-          new Date(),
-
-        status:
-          "Active",
-
-        progress:
-          0,
-
-      });
-
-  } else {
-
-    enrollment.payment =
-      payment._id;
-
-    enrollment.status =
-      "Active";
-
-    enrollment.progress =
-      0;
-
-    enrollment.enrollmentDate =
-      new Date();
-
-    enrollment.startDate =
-      new Date();
-
-    enrollment.completionDate =
-      null;
-
-  }
-
-
-  await enrollment.save({
-    session,
-  });
-
-
-  // =========================================
-  // INTERNSHIP APPLICATION
-  // =========================================
-
-  if (
-    payment.type ===
-    "internship"
-  ) {
-
-    const internship =
-      await Internship.findById(
-        payment.internship
-      ).session(session);
-
-
-    if (!internship) {
-
-      const error =
-        new Error(
-          "Internship not found."
-        );
-
-      error.statusCode =
-        404;
-
-      throw error;
-
-    }
-
-
-    const existingApplication =
-      await Application.findOne({
-
-        student:
-          payment.student,
-
-        internship:
-          payment.internship,
-
-      }).session(session);
-
-
-    if (!existingApplication) {
-
-      const application =
-        new Application({
-
-          student:
-            payment.student,
-
-          internship:
-            payment.internship,
-
-          recruiter:
-            internship.recruiter,
-
-          resume:
-            "Paid Internship",
-
-          coverLetter:
-            "Paid Internship Application",
-
-          portfolio:
-            "",
-
-          status:
-            "Pending",
-
-        });
-
-
-      await application.save({
-        session,
-      });
-
-
-      internship.applicants =
-        Number(
-          internship.applicants || 0
-        ) + 1;
-
-
-      await internship.save({
-        session,
-      });
-
-    }
-
-  }
-
-
-  // =========================================
-  // OFFER LETTER
-  // =========================================
-
-  const offerResult =
-    await createOfferLetterForPayment({
-
-      payment,
-
-      enrollment,
-
-      session,
-
-    });
-
-
-  // =========================================
-  // REFERRAL REWARD
-  // =========================================
-
-  if (
-    payment.ambassador
-  ) {
-
-    const profile =
-      await AmbassadorProfile.findOne({
-
-        user:
-          payment.ambassador,
-
-      }).session(session);
-
-
-    if (profile) {
-
-      profile.successfulReferrals =
-        Number(
-          profile.successfulReferrals ||
-          0
-        ) + 1;
-
-
-      profile.totalReferrals =
-        Number(
-          profile.totalReferrals ||
-          0
-        );
-
-
-      profile.rewardPoints =
-        Number(
-          profile.rewardPoints ||
-          0
-        ) + 100;
-
-
-      await profile.save({
-        session,
-      });
-
-    }
-
-  }
-
-
-  return {
-
-    payment,
-    enrollment,
-
-    offer:
-      offerResult.offer,
-
-    templateMissing:
-      offerResult.templateMissing,
-
-  };
-
-};
-
-
-// =====================================================
-// RAZORPAY: CREATE ORDER
-// KEPT FOR FUTURE ONLINE PAYMENTS
-// =====================================================
-
-export const createOrder = async (
-  req,
-  res
-) => {
-
-  try {
-
-    const {
-
-      student,
-
-      type,
-
-      course,
-
-      internship,
-
-      amount,
-
-      referralCode,
-
-    } = req.body;
-
-
-    if (
-      !student ||
-      !type ||
-      amount === undefined
-    ) {
-
-      return res.status(400).json({
-
-        success:
-          false,
-
-        message:
-          "Required fields missing.",
-
-      });
-
-    }
-
-
-    let finalAmount =
-      Number(amount);
-
-
-    let discountAmount =
-      0;
-
-
-    let ambassador =
-      null;
-
-
-    // =========================================
-    // REFERRAL
-    // =========================================
-
-    if (
-      referralCode
-    ) {
-
-      ambassador =
-        await User.findOne({
-
-          referralCode:
-            referralCode
-              .trim()
-              .toUpperCase(),
-
-          role:
-            "ambassador",
-
-          ambassadorApproved:
-            true,
-
-        });
-
-
-      if (ambassador) {
-
-        discountAmount =
-          Math.round(
-            finalAmount * 0.10
-          );
-
-
-        finalAmount =
-          finalAmount -
-          discountAmount;
-
-      }
-
-    }
-
-
-    // =========================================
-    // COURSE
-    // =========================================
-
-    if (
-      type ===
-      "course"
-    ) {
-
-      const courseData =
-        await Course.findById(
-          course
-        );
-
-
-      if (!courseData) {
-
-        return res.status(404).json({
-
-          success:
-            false,
-
-          message:
-            "Course not found.",
-
-        });
-
-      }
-
-    }
-
-
-    // =========================================
-    // INTERNSHIP
-    // =========================================
-
-    if (
-      type ===
-      "internship"
-    ) {
-
-      const internshipData =
-        await Internship.findById(
-          internship
-        );
-
-
-      if (!internshipData) {
-
-        return res.status(404).json({
-
-          success:
-            false,
-
-          message:
-            "Internship not found.",
-
-        });
-
-      }
-
-    }
-
-
-    // =========================================
-    // RAZORPAY ORDER
-    // =========================================
-
-    const order =
-      await razorpay.orders.create({
-
-        amount:
-          Math.round(
-            finalAmount * 100
-          ),
-
-        currency:
-          "INR",
-
-        receipt:
-          `skilvira_${Date.now()}`,
-
-      });
-
-
-    // =========================================
-    // SAVE PAYMENT
-    // =========================================
-
-    const payment =
-      await Payment.create({
-
-        student,
-
-        type,
-
-        course:
-          type === "course"
-            ? course
-            : null,
-
-        internship:
-          type === "internship"
-            ? internship
-            : null,
-
-        referralCode:
-          referralCode
-            ? referralCode
-                .trim()
-                .toUpperCase()
-            : "",
-
-        ambassador:
-          ambassador?._id ||
-          null,
-
-        originalAmount:
-          Number(amount),
-
-        discountAmount,
-
-        finalAmount,
-
-        razorpayOrderId:
-          order.id,
-
-        status:
-          "pending",
-
-      });
-
-
-    return res.status(200).json({
-
-      success:
-        true,
-
-      order,
-
-      paymentId:
-        payment._id,
-
-      discountAmount,
-
-      finalAmount,
-
-    });
-
-  } catch (error) {
-
-    console.error(
-      "RAZORPAY CREATE ORDER ERROR:",
-      error
-    );
-
-
-    return res.status(500).json({
-
-      success:
-        false,
-
-      message:
-        error.message,
-
-    });
-
-  }
-
-};
-
-
-// =====================================================
-// RAZORPAY: VERIFY PAYMENT
-// =====================================================
-
-export const verifyPayment = async (
-  req,
-  res
-) => {
-
-  const session =
-    await mongoose.startSession();
-
-
-  try {
-
-    const {
-
-      razorpay_order_id,
-
-      razorpay_payment_id,
-
-      razorpay_signature,
-
-      paymentId,
-
-    } = req.body;
-
-
-    const body =
-      razorpay_order_id +
-      "|" +
-      razorpay_payment_id;
-
-
-    const expectedSignature =
-      crypto
-        .createHmac(
-          "sha256",
-          process.env.RAZORPAY_KEY_SECRET
-        )
-        .update(body)
-        .digest("hex");
-
-
-    if (
-      expectedSignature !==
-      razorpay_signature
-    ) {
-
-      return res.status(400).json({
-
-        success:
-          false,
-
-        message:
-          "Payment verification failed.",
-
-      });
-
-    }
-
-
-    let result = null;
-
-
-    await session.withTransaction(
-      async () => {
-
-        const payment =
-          await Payment.findById(
-            paymentId
-          ).session(session);
-
-
-        if (!payment) {
-
-          const error =
-            new Error(
-              "Payment not found."
-            );
-
-          error.statusCode =
-            404;
-
-          throw error;
-
-        }
-
-
-        payment.razorpayPaymentId =
-          razorpay_payment_id;
-
-        payment.razorpaySignature =
-          razorpay_signature;
-
-
-        await payment.save({
-          session,
-        });
-
-
-        result =
-          await activateApprovedPayment({
-
-            paymentId,
-
-            verifiedBy:
-              getUserId(req),
-
-            session,
-
-          });
-
-      }
-    );
-
-
-    await notifyOfferLetterReview(
-      result
-    );
-
-
-    return res.status(200).json({
-
-      success:
-        true,
-
-      message:
-        result.templateMissing
-
-          ? "Payment verified and enrollment activated, but offer letter template is missing."
-
-          : "Payment verified, enrollment activated and offer letter sent for employee review.",
-
-      payment:
-        result.payment,
-
-      enrollment:
-        result.enrollment,
-
-      offerLetterId:
-        result.offer?._id ||
-        null,
-
-      templateMissing:
-        result.templateMissing,
-
-    });
-
-  } catch (error) {
-
-    console.error(
-      "RAZORPAY VERIFY ERROR:",
-      error
-    );
-
-
-    return res.status(
-      error.statusCode ||
-      500
-    ).json({
-
-      success:
-        false,
-
-      message:
-        error.message,
-
-    });
-
-  } finally {
-
-    await session.endSession();
-
-  }
-
-};
-
-
-// =====================================================
-// MANUAL PAYMENT SUBMIT
-// STUDENT
-// =====================================================
-
-export const createManualPayment = async (
-  req,
-  res
-) => {
-
-  try {
-
-    const studentId =
-      getUserId(req);
-
-
-    if (!studentId) {
-
-      return res.status(401).json({
-
-        success:
-          false,
-
-        message:
-          "Authentication required.",
-
-      });
-
-    }
-
-
-    const {
-
-      type,
-
-      course,
-
-      internship,
-
-      originalAmount,
-
-      discountAmount,
-
-      finalAmount,
-
-      paymentMethod,
-
-      transactionReference,
-
-      paymentNote,
-
-      referralCode,
-
-    } = req.body;
-
-
-    if (
-      !["course", "internship"].includes(type)
-    ) {
-
-      return res.status(400).json({
-
-        success:
-          false,
-
-        message:
-          "Invalid payment type.",
-
-      });
-
-    }
-
-
-    let item = null;
-
-
-    // =========================================
-    // ITEM
-    // =========================================
-
-    if (
-      type ===
-      "course"
-    ) {
-
-      if (!course) {
-
-        return res.status(400).json({
-
-          success:
-            false,
-
-          message:
-            "Course is required.",
-
-        });
-
-      }
-
-
-      item =
-        await Course.findOne({
-
-          _id:
-            course,
-
-          isDeleted: {
-            $ne: true,
-          },
-
-        });
-
-
-    } else {
-
-      if (!internship) {
-
-        return res.status(400).json({
-
-          success:
-            false,
-
-          message:
-            "Internship is required.",
-
-        });
-
-      }
-
-
-      item =
-        await Internship.findOne({
-
-          _id:
-            internship,
-
-          isDeleted: {
-            $ne: true,
-          },
-
-        });
-
-    }
-
-
-    if (!item) {
-
-      return res.status(404).json({
-
-        success:
-          false,
-
-        message:
-          `${type === "course" ? "Course" : "Internship"} not found.`,
-
-      });
-
-    }
-
-
-    // =========================================
-    // AMOUNT
-    // =========================================
-
-    const original =
-      Number(originalAmount);
-
-
-    if (
-      !Number.isFinite(original)
-    ) {
-
-      return res.status(400).json({
-
-        success:
-          false,
-
-        message:
-          "Invalid original amount.",
-
-      });
-
-    }
-
-
-    const actualPrice =
-      Number(
-        item.price || 0
-      );
-
-
-    if (
-      Math.abs(
-        original -
-        actualPrice
-      ) > 0.01
-    ) {
-
-      return res.status(400).json({
-
-        success:
-          false,
-
-        message:
-          "Invalid program amount.",
-
-      });
-
-    }
-
-
-    // =========================================
-    // REFERRAL
-    // =========================================
-
-    let ambassador =
-      null;
-
-
-    let serverDiscount =
-      0;
-
-
-    if (
-      referralCode &&
-      referralCode.trim()
-    ) {
-
-      ambassador =
-        await User.findOne({
-
-          referralCode:
-            referralCode
-              .trim()
-              .toUpperCase(),
-
-          role:
-            "ambassador",
-
-          ambassadorApproved:
-            true,
-
-        });
-
-
-      if (ambassador) {
-
-        serverDiscount =
-          Math.round(
-            original * 0.10
-          );
-
-      }
-
-    }
-
-
-    const serverFinal =
-      Math.max(
-        original -
-        serverDiscount,
-        0
-      );
-
-
-    // =========================================
-    // VALIDATE CLIENT VALUES
-    // =========================================
-
-    if (
-      Math.abs(
-        Number(discountAmount || 0) -
-        serverDiscount
-      ) > 0.01
-    ) {
-
-      return res.status(400).json({
-
-        success:
-          false,
-
-        message:
-          "Invalid referral discount.",
-
-      });
-
-    }
-
-
-    if (
-      Math.abs(
-        Number(finalAmount) -
-        serverFinal
-      ) > 0.01
-    ) {
-
-      return res.status(400).json({
-
-        success:
-          false,
-
-        message:
-          "Invalid final amount.",
-
-      });
-
-    }
-
-
-    // =========================================
-    // TRANSACTION REFERENCE
-    // =========================================
-
-    if (
-      !transactionReference ||
-      !transactionReference.trim()
-    ) {
-
-      return res.status(400).json({
-
-        success:
-          false,
-
-        message:
-          "Transaction ID is required.",
-
-      });
-
-    }
-
-
-    // =========================================
-    // SCREENSHOT
-    // =========================================
-
-    if (!req.file) {
-
-      return res.status(400).json({
-
-        success:
-          false,
-
-        message:
-          "Payment screenshot is required.",
-
-      });
-
-    }
-
-
-    // =========================================
-    // DUPLICATE PENDING
-    // =========================================
-
-    const duplicate =
-      await Payment.findOne({
-
-        student:
-          studentId,
-
-        course:
-          type === "course"
-            ? course
-            : null,
-
-        internship:
-          type === "internship"
-            ? internship
-            : null,
-
-        status:
-          "pending",
-
-        isDeleted:
-          false,
-
-      });
-
-
-    if (duplicate) {
-
-      return res.status(409).json({
-
-        success:
-          false,
-
-        message:
-          "Payment for this program is already under verification.",
-
-      });
-
-    }
-
-
-    // =========================================
-    // ALREADY ENROLLED
-    // =========================================
-
-    const enrolled =
-      await Enrollment.findOne({
-
-        student:
-          studentId,
-
-        course:
-          type === "course"
-            ? course
-            : null,
-
-        internship:
-          type === "internship"
-            ? internship
-            : null,
-
-        status: {
-          $in: [
-            "Active",
-            "Completed",
-          ],
+    const docs = await Enrollment.create(
+      [
+        {
+          student: payment.student,
+          course: payment.course || null,
+          internship: payment.internship || null,
+          payment: payment._id,
+          status: "Active",
+          enrollmentDate: new Date(),
         },
-
-        isDeleted:
-          false,
-
-      });
-
-
-    if (enrolled) {
-
-      return res.status(409).json({
-
-        success:
-          false,
-
-        message:
-          "You are already enrolled in this program.",
-
-      });
-
-    }
-
-
-    // =========================================
-    // SCREENSHOT PATH
-    // =========================================
-
-    const screenshotPath =
-      `/uploads/payments/${req.file.filename}`;
-
-
-    // =========================================
-    // CREATE PAYMENT
-    // =========================================
-
-    const payment =
-      await Payment.create({
-
-        student:
-          studentId,
-
-        type,
-
-        course:
-          type === "course"
-            ? course
-            : null,
-
-        internship:
-          type === "internship"
-            ? internship
-            : null,
-
-        originalAmount:
-          original,
-
-        discountAmount:
-          serverDiscount,
-
-        finalAmount:
-          serverFinal,
-
-        referralCode:
-          ambassador
-            ? referralCode
-                .trim()
-                .toUpperCase()
-            : "",
-
-        ambassador:
-          ambassador?._id ||
-          null,
-
-        paymentMethod:
-          paymentMethod ||
-          "upi",
-
-        paymentScreenshot:
-          screenshotPath,
-
-        transactionReference:
-          transactionReference.trim(),
-
-        paymentNote:
-          paymentNote?.trim() ||
-          "",
-
-        status:
-          "pending",
-
-        isDeleted:
-          false,
-
-      });
-
-
-    // =========================================
-    // STAFF NOTIFICATION
-    // =========================================
-
-    await notifyStaffPayment(
-      payment,
-      studentId,
-      item.title ||
-        "Program"
+      ],
+      { session }
     );
 
+    enrollment = docs[0];
+    created = true;
+  }
+
+  return { enrollment, created };
+};
+
+const activateApprovedPayment = async (paymentId) => {
+  const session = await mongoose.startSession();
+  let result;
+
+  try {
+    await session.withTransaction(async () => {
+      const payment = await Payment.findById(paymentId).session(session);
+
+      if (!payment || payment.isDeleted) {
+        throw new Error("Payment not found");
+      }
+
+      if (payment.status === "rejected") {
+        throw new Error("Rejected payment cannot be activated");
+      }
+
+      const wasApproved = payment.status === "approved";
+
+      payment.status = "approved";
+      payment.paidAt = payment.paidAt || new Date();
+
+      await payment.save({ session });
+
+      const { enrollment, created } =
+        await createOrGetEnrollment(payment, session);
+
+      const student = await User.findById(payment.student).session(session);
+      const ambassadorId = payment.ambassador || student?.referredBy || null;
+
+      if (ambassadorId) {
+        await Referral.findOneAndUpdate(
+          {
+            ambassador: ambassadorId,
+            student: payment.student,
+            isDeleted: { $ne: true },
+          },
+          {
+            $set: {
+              enrolled: true,
+              enrolledAt: new Date(),
+              enrollment: enrollment._id,
+              payment: payment._id,
+              status: "Used",
+            },
+          },
+          {
+            session,
+            new: true,
+          }
+        );
+
+        if (created && !wasApproved) {
+          const profile = await AmbassadorProfile.findOne({
+            user: ambassadorId,
+          }).session(session);
+
+          if (profile) {
+            profile.successfulReferrals =
+              Number(profile.successfulReferrals || 0) + 1;
+
+            profile.rewardPoints =
+              Number(profile.rewardPoints || 0) + 100;
+
+            await profile.save({ session });
+          }
+        }
+      }
+
+      result = { payment, enrollment };
+    });
+
+    return result;
+  } finally {
+    await session.endSession();
+  }
+};
+
+// Create Razorpay order
+export const createOrder = async (req, res) => {
+  try {
+    const student = getUserId(req);
+
+    if (!student) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    if (
+      !process.env.RAZORPAY_KEY_ID ||
+      !process.env.RAZORPAY_KEY_SECRET
+    ) {
+      return res.status(503).json({
+        success: false,
+        message: "Online payments are not configured",
+      });
+    }
+
+    const {
+      type,
+      course,
+      internship,
+      amount,
+      originalAmount,
+      discountAmount = 0,
+      finalAmount,
+      referralCode = "",
+    } = req.body || {};
+
+    const productType =
+      type || (course ? "course" : internship ? "internship" : "");
+
+    if (!["course", "internship"].includes(productType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Select a valid course or internship",
+      });
+    }
+
+    if (
+      (productType === "course" && !isValidId(course)) ||
+      (productType === "internship" && !isValidId(internship))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid product ID is required",
+      });
+    }
+
+    const product = await getProduct({
+      type: productType,
+      courseId: course,
+      internshipId: internship,
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Selected course or internship not found",
+      });
+    }
+
+    if (productType === "course") {
+      if (String(product.status || "active").toLowerCase() !== "active") {
+        return res.status(400).json({
+          success: false,
+          message: "This course is not currently available.",
+        });
+      }
+
+      if (product.registrationDeadline) {
+        const deadline = new Date(product.registrationDeadline);
+        deadline.setUTCHours(23, 59, 59, 999);
+
+        if (deadline.getTime() < Date.now()) {
+          return res.status(400).json({
+            success: false,
+            message: "Registration for this course has closed.",
+          });
+        }
+      }
+    }
+
+    // Always calculate online payment from the server-side product price.
+    // Never trust a client-supplied amount or discount.
+    // Add discounts only after validating an eligible offer on the server.
+    const original = Number(product.price);
+    const discount = 0;
+    const final = original;
+
+    if (
+      ![original, discount, final].every(Number.isFinite) ||
+      original < 0 ||
+      discount < 0 ||
+      final < 0 ||
+      final > original
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment amount",
+      });
+    }
+
+    if (final <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Online payment amount must be greater than zero",
+      });
+    }
+
+    let ambassador = null;
+
+    const normalizedCode = String(referralCode || "")
+      .trim()
+      .toUpperCase();
+
+    if (normalizedCode) {
+      const owner = await User.findOne({
+        referralCode: normalizedCode,
+        role: "ambassador",
+      }).select("_id");
+
+      if (owner) {
+        ambassador = owner._id;
+      }
+    }
+
+    const razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+
+    const order = await razorpay.orders.create({
+      amount: Math.round(final * 100),
+      currency: "INR",
+      receipt: `sv_${Date.now()}`,
+    });
+
+    const payment = await Payment.create({
+      student,
+      type: productType,
+      course: productType === "course" ? course : null,
+      internship: productType === "internship" ? internship : null,
+      originalAmount: original,
+      discountAmount: discount,
+      finalAmount: final,
+      referralCode: normalizedCode,
+      ambassador,
+      razorpayOrderId: order.id,
+      paymentMode: "razorpay",
+      status: "pending",
+    });
 
     return res.status(201).json({
-
-      success:
-        true,
-
-      message:
-        "Payment submitted successfully and is waiting for verification.",
-
-      payment,
-
+      success: true,
+      order,
+      paymentId: payment._id,
+      key: process.env.RAZORPAY_KEY_ID,
     });
-
   } catch (error) {
-
-    console.error(
-      "MANUAL PAYMENT ERROR:",
-      error
-    );
-
-
-    return res.status(500).json({
-
-      success:
-        false,
-
-      message:
-        error.message ||
-
-        "Failed to submit payment.",
-
-    });
-
+    return sendError(res, error, "Unable to create payment order");
   }
-
 };
 
-
-// =====================================================
-// APPROVE MANUAL PAYMENT
-// =====================================================
-
-export const approveManualPayment = async (
-  req,
-  res
-) => {
-
-  const session =
-    await mongoose.startSession();
-
-
+// Verify Razorpay payment
+export const verifyPayment = async (req, res) => {
   try {
+    const userId = getUserId(req);
 
-    let result = null;
-
-
-    await session.withTransaction(
-      async () => {
-
-        result =
-          await activateApprovedPayment({
-
-            paymentId:
-              req.params.id,
-
-            verifiedBy:
-              getUserId(req),
-
-            session,
-
-          });
-
-      }
-    );
-
-
-    await notifyOfferLetterReview(
-      result
-    );
-
-
-    return res.status(200).json({
-
-      success:
-        true,
-
-      message:
-        result.templateMissing
-
-          ? "Payment approved and enrollment activated, but no offer letter template is assigned."
-
-          : "Payment approved, enrollment activated and offer letter sent for employee review.",
-
-      payment:
-        result.payment,
-
-      enrollment:
-        result.enrollment,
-
-      offerLetterId:
-        result.offer?._id ||
-        null,
-
-      templateMissing:
-        result.templateMissing,
-
-    });
-
-  } catch (error) {
-
-    console.error(
-      "APPROVE MANUAL PAYMENT ERROR:",
-      error
-    );
-
-
-    return res.status(
-      error.statusCode ||
-      500
-    ).json({
-
-      success:
-        false,
-
-      message:
-        error.message ||
-
-        "Failed to approve payment.",
-
-    });
-
-  } finally {
-
-    await session.endSession();
-
-  }
-
-};
-
-
-// =====================================================
-// REJECT MANUAL PAYMENT
-// =====================================================
-
-export const rejectManualPayment = async (
-  req,
-  res
-) => {
-
-  try {
-
-    const payment =
-      await Payment.findOne({
-
-        _id:
-          req.params.id,
-
-        isDeleted:
-          false,
-
-      });
-
-
-    if (!payment) {
-
-      return res.status(404).json({
-
-        success:
-          false,
-
-        message:
-          "Payment not found.",
-
-      });
-
-    }
-
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      paymentId,
+    } = req.body || {};
 
     if (
-      payment.status ===
-      "approved"
+      !razorpay_order_id ||
+      !razorpay_payment_id ||
+      !razorpay_signature ||
+      !paymentId
     ) {
-
       return res.status(400).json({
-
-        success:
-          false,
-
-        message:
-          "Approved payment cannot be rejected.",
-
+        success: false,
+        message: "Missing payment verification details",
       });
-
     }
 
-
-    const reason =
-      req.body.reason?.trim();
-
-
-    if (!reason) {
-
-      return res.status(400).json({
-
-        success:
-          false,
-
-        message:
-          "Rejection reason is required.",
-
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      return res.status(503).json({
+        success: false,
+        message: "Online payments are not configured",
       });
-
     }
 
+    const payment = await Payment.findById(paymentId);
 
-    payment.status =
-      "rejected";
+    if (!payment || payment.isDeleted) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment not found",
+      });
+    }
 
+    if (String(payment.student) !== String(userId)) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot verify another user's payment",
+      });
+    }
 
-    payment.rejectionReason =
-      reason;
+    if (payment.razorpayOrderId !== razorpay_order_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Order does not match this payment",
+      });
+    }
 
+    const expected = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest();
 
-    payment.verifiedBy =
-      getUserId(req);
+    let received;
 
+    try {
+      received = Buffer.from(razorpay_signature, "hex");
+    } catch {
+      received = Buffer.alloc(0);
+    }
 
-    payment.verifiedAt =
-      new Date();
+    if (
+      received.length !== expected.length ||
+      !crypto.timingSafeEqual(received, expected)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment signature",
+      });
+    }
 
+    payment.razorpayPaymentId = razorpay_payment_id;
+    payment.razorpaySignature = razorpay_signature;
 
     await payment.save();
 
-
-    try {
-
-      await createNotification({
-
-        recipient:
-          payment.student,
-
-        type:
-          "payment",
-
-        title:
-          "Payment Rejected",
-
-        message:
-          `Your payment was rejected. Reason: ${reason}`,
-
-        referenceId:
-          payment._id,
-
-        referenceModel:
-          "Payment",
-
-        link:
-          "/student/payments",
-
-      });
-
-    } catch (notificationError) {
-
-      console.error(
-        "PAYMENT REJECTION NOTIFICATION ERROR:",
-        notificationError
-      );
-
-    }
-
-
-    return res.status(200).json({
-
-      success:
-        true,
-
-      message:
-        "Payment rejected successfully.",
-
-      payment,
-
-    });
-
-  } catch (error) {
-
-    console.error(
-      "REJECT PAYMENT ERROR:",
-      error
-    );
-
-
-    return res.status(500).json({
-
-      success:
-        false,
-
-      message:
-        error.message ||
-
-        "Failed to reject payment.",
-
-    });
-
-  }
-
-};
-
-
-// =====================================================
-// GET PENDING PAYMENTS
-// =====================================================
-
-export const getPendingPayments = async (
-  req,
-  res
-) => {
-
-  try {
-
-    const payments =
-      await Payment.find({
-
-        status:
-          "pending",
-
-        isDeleted:
-          false,
-
-      })
-
-        .populate(
-          "student",
-          "name email avatar"
-        )
-
-        .populate(
-          "course",
-          "title price thumbnail"
-        )
-
-        .populate(
-          "internship",
-          "title company price internshipImage"
-        )
-
-        .populate(
-          "ambassador",
-          "name email referralCode"
-        )
-
-        .populate(
-          "verifiedBy",
-          "name email"
-        )
-
-        .sort({
-
-          createdAt:
-            -1,
-
-        });
-
-
-    return res.status(200).json({
-
-      success:
-        true,
-
-      count:
-        payments.length,
-
-      payments,
-
-    });
-
-  } catch (error) {
-
-    console.error(
-      "GET PENDING PAYMENTS ERROR:",
-      error
-    );
-
-
-    return res.status(500).json({
-
-      success:
-        false,
-
-      message:
-        "Failed to fetch pending payments.",
-
-      error:
-        error.message,
-
-    });
-
-  }
-
-};
-
-
-// =====================================================
-// GET SINGLE PAYMENT
-// =====================================================
-
-export const getPaymentById = async (
-  req,
-  res
-) => {
-
-  try {
-
-    const payment =
-      await Payment.findOne({
-
-        _id:
-          req.params.id,
-
-        isDeleted:
-          false,
-
-      })
-
-        .populate(
-          "student",
-          "name email avatar"
-        )
-
-        .populate(
-          "course"
-        )
-
-        .populate(
-          "internship"
-        )
-
-        .populate(
-          "ambassador",
-          "name email referralCode"
-        )
-
-        .populate(
-          "verifiedBy",
-          "name email"
-        );
-
-
-    if (!payment) {
-
-      return res.status(404).json({
-
-        success:
-          false,
-
-        message:
-          "Payment not found.",
-
-      });
-
-    }
-
-
-    return res.status(200).json({
-
-      success:
-        true,
-
-      payment,
-
-    });
-
-  } catch (error) {
-
-    console.error(
-      "GET PAYMENT ERROR:",
-      error
-    );
-
-
-    return res.status(500).json({
-
-      success:
-        false,
-
-      message:
-        "Failed to fetch payment.",
-
-      error:
-        error.message,
-
-    });
-
-  }
-
-};
-
-
-// =====================================================
-// STUDENT PAYMENT HISTORY
-// =====================================================
-
-export const getStudentPayments = async (
-  req,
-  res
-) => {
-
-  try {
-
-    const payments =
-      await Payment.find({
-
-        student:
-          req.params.studentId,
-
-        isDeleted:
-          false,
-
-      })
-
-        .populate("course")
-
-        .populate("internship")
-
-        .populate("offerLetter")
-
-        .sort({
-
-          createdAt:
-            -1,
-
-        });
-
+    const data = await activateApprovedPayment(payment._id);
 
     return res.json({
-
-      success:
-        true,
-
-      payments,
-
+      success: true,
+      message: "Payment verified successfully",
+      data,
     });
-
   } catch (error) {
-
-    console.error(
-      "GET STUDENT PAYMENTS ERROR:",
-      error
-    );
-
-
-    return res.status(500).json({
-
-      success:
-        false,
-
-      message:
-        error.message,
-
-    });
-
+    return sendError(res, error, "Payment verification failed");
   }
-
 };
 
-
-// =====================================================
-// MY PAYMENTS
-// =====================================================
-
-export const getMyPayments = async (
-  req,
-  res
-) => {
-
+// Manual payment submission
+export const createManualPayment = async (req, res) => {
   try {
+    const student = getUserId(req);
 
-    const studentId =
-      getUserId(req);
-
-
-    if (!studentId) {
-
+    if (!student) {
       return res.status(401).json({
-
-        success:
-          false,
-
-        message:
-          "Authentication required.",
-
+        success: false,
+        message: "Authentication required",
       });
-
     }
 
+    const {
+      type,
+      course,
+      internship,
+      originalAmount,
+      discountAmount = 0,
+      finalAmount,
+      paymentMethod = "upi",
+      transactionReference = "",
+      paymentNote = "",
+      referralCode = "",
+    } = req.body || {};
 
-    const payments =
-      await Payment.find({
-
-        student:
-          studentId,
-
-        isDeleted:
-          false,
-
-      })
-
-        .populate(
-          "course",
-          "title price thumbnail"
-        )
-
-        .populate(
-          "internship",
-          "title company price internshipImage"
-        )
-
-        .populate(
-          "offerLetter"
-        )
-
-        .sort({
-
-          createdAt:
-            -1,
-
-        });
-
-
-    return res.status(200).json({
-
-      success:
-        true,
-
-      count:
-        payments.length,
-
-      payments,
-
-    });
-
-  } catch (error) {
-
-    console.error(
-      "GET MY PAYMENTS ERROR:",
-      error
-    );
-
-
-    return res.status(500).json({
-
-      success:
-        false,
-
-      message:
-        "Failed to fetch payment history.",
-
-      error:
-        error.message,
-
-    });
-
-  }
-
-};
-
-
-// =====================================================
-// NOTIFY STAFF ABOUT PAYMENT
-// =====================================================
-
-const notifyStaffPayment = async (
-  payment,
-  studentId,
-  programName
-) => {
-
-  try {
-
-    const student =
-      await User.findById(
-        studentId
-      ).select(
-        "name"
-      );
-
-
-    const staff =
-      await User.find({
-
-        role: {
-          $in: [
-            "employee",
-            "control",
-          ],
-        },
-
-        isDeleted: {
-          $ne: true,
-        },
-
-      }).select(
-        "_id"
-      );
-
-
-    for (
-      const person
-      of staff
-    ) {
-
-      try {
-
-        await createNotification({
-
-          recipient:
-            person._id,
-
-          type:
-            "payment",
-
-          title:
-            "New Payment Verification",
-
-          message:
-            `${student?.name || "A student"} submitted payment for ${programName}. Please verify the screenshot and transaction ID.`,
-
-          referenceId:
-            payment._id,
-
-          referenceModel:
-            "Payment",
-
-          link:
-            "/employee/payments",
-
-        });
-
-      } catch (notificationError) {
-
-        console.error(
-          "STAFF PAYMENT NOTIFICATION ERROR:",
-          notificationError
-        );
-
-      }
-
+    if (!["course", "internship"].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Select a valid course or internship",
+      });
     }
-
-  } catch (error) {
-
-    console.error(
-      "NOTIFY STAFF ERROR:",
-      error
-    );
-
-  }
-
-};
-
-
-// =====================================================
-// NOTIFY STAFF ABOUT OFFER LETTER
-// =====================================================
-
-const notifyOfferLetterReview = async (
-  result
-) => {
-
-  try {
-
-    const payment =
-      result.payment;
-
 
     if (
-      !payment ||
-      !result.offer
+      (type === "course" && !isValidId(course)) ||
+      (type === "internship" && !isValidId(internship))
     ) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid course or internship is required",
+      });
+    }
 
-      return;
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment screenshot is required",
+      });
+    }
 
+    const product = await getProduct({
+      type,
+      courseId: course,
+      internshipId: internship,
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Selected course or internship not found",
+      });
     }
 
 
-    const student =
-      await User.findById(
-        payment.student
-      ).select(
-        "name"
-      );
+    const roundMoney = (value) =>
+      Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
+    // Authoritative product price and discount are calculated on the server.
+    const original = roundMoney(Math.max(0, Number(product.price) || 0));
 
-    const program =
-      payment.course ||
-      payment.internship;
+    if (original <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No manual payment is required for a free item.",
+      });
+    }
 
+    const normalizedCode = String(referralCode || "").trim().toUpperCase();
+    let ambassador = null;
 
-    const staff =
-      await User.find({
+    if (normalizedCode) {
+      const owner = await User.findOne({
+        referralCode: normalizedCode,
+        role: "ambassador",
+        ambassadorApproved: true,
+        status: "active",
+        isDeleted: { $ne: true },
+      }).select("_id");
 
-        role: {
-          $in: [
-            "employee",
-            "control",
-          ],
-        },
-
-        isDeleted: {
-          $ne: true,
-        },
-
-      }).select(
-        "_id"
-      );
-
-
-    for (
-      const person
-      of staff
-    ) {
-
-      try {
-
-        await createNotification({
-
-          recipient:
-            person._id,
-
-          type:
-            "offer_letter",
-
-          title:
-            "Offer Letter Review Required",
-
-          message:
-            `Offer letter for ${student?.name || "student"} is ready for review.`,
-
-          referenceId:
-            result.offer._id,
-
-          referenceModel:
-            "GeneratedOfferLetter",
-
-          link:
-            "/employee/offer-letters",
-
+      if (!owner) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid or inactive ambassador referral code.",
         });
-
-      } catch (notificationError) {
-
-        console.error(
-          "OFFER LETTER NOTIFICATION ERROR:",
-          notificationError
-        );
-
       }
 
+      ambassador = owner._id;
+    } else {
+      const studentUser = await User.findById(student).select("referredBy");
+      ambassador = studentUser?.referredBy || null;
     }
 
-  } catch (error) {
-
-    console.error(
-      "OFFER LETTER REVIEW NOTIFICATION ERROR:",
-      error
+    const discountType =
+      product.studentReferralDiscountType === "fixed" ? "fixed" : "percent";
+    const discountValue = Math.max(
+      0,
+      Number(product.studentReferralDiscountValue) || 0
     );
 
-  }
+    let requestedDiscount = 0;
+    if (normalizedCode && product.studentReferralDiscountEnabled === true) {
+      requestedDiscount = discountType === "fixed"
+        ? discountValue
+        : original * Math.min(discountValue, 100) / 100;
+    }
 
+    // Manual payments must remain positive; cap discounts at the payable fee.
+    const discount = roundMoney(
+      Math.min(Math.max(original - 1, 0), requestedDiscount)
+    );
+    const final = roundMoney(original - discount);
+
+    // Avoid accepting an amount different from the fee shown at checkout.
+    if (
+      (originalAmount != null &&
+        (!Number.isFinite(Number(originalAmount)) ||
+          Math.abs(Number(originalAmount) - original) > 0.01)) ||
+      (discountAmount != null &&
+        (!Number.isFinite(Number(discountAmount)) ||
+          Math.abs(Number(discountAmount) - discount) > 0.01)) ||
+      (finalAmount != null &&
+        (!Number.isFinite(Number(finalAmount)) ||
+          Math.abs(Number(finalAmount) - final) > 0.01))
+    ) {
+      return res.status(409).json({
+        success: false,
+        message: "The fee or referral discount has changed. Refresh checkout and apply the referral code again.",
+        originalAmount: original,
+        discountAmount: discount,
+        finalAmount: final,
+      });
+    }
+
+    const commissionType =
+      product.ambassadorCommissionType === "fixed" ? "fixed" : "percent";
+    const commissionValue = Math.max(
+      0,
+      Number(product.ambassadorCommissionValue ?? 15) || 0
+    );
+    const commissionEnabled = product.ambassadorCommissionEnabled !== false;
+
+    const calculatedCommission = commissionType === "fixed"
+      ? commissionValue
+      : final * Math.min(commissionValue, 100) / 100;
+
+    const ambassadorCommissionAmount = ambassador && commissionEnabled
+      ? roundMoney(Math.min(final, calculatedCommission))
+      : 0;
+
+    const allowedMethods = [
+      "upi",
+      "bank_transfer",
+      "card",
+      "cash",
+      "other",
+    ];
+
+    if (!allowedMethods.includes(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment method",
+      });
+    }
+
+    if (!String(transactionReference).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Transaction reference is required",
+      });
+    }
+
+    const screenshot = req.file.filename
+      ? `uploads/payments/${req.file.filename}`
+      : req.file.location || "";
+
+    const payment = await Payment.create({
+      student,
+      type,
+      course: type === "course" ? course : null,
+      internship: type === "internship" ? internship : null,
+      originalAmount: original,
+      discountAmount: discount,
+      finalAmount: final,
+      referralCode: normalizedCode,
+      ambassador,
+      studentReferralDiscountType: discountType,
+      studentReferralDiscountValue: discountValue,
+      ambassadorCommissionType: commissionType,
+      ambassadorCommissionValue: commissionValue,
+      ambassadorCommissionAmount,
+      paymentMethod,
+      paymentMode: "manual",
+      transactionReference: String(transactionReference).trim(),
+      paymentNote: String(paymentNote || "").trim(),
+      paymentScreenshot: screenshot,
+      status: "pending",
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Manual payment submitted for verification",
+      payment,
+    });
+  } catch (error) {
+    return sendError(res, error, "Unable to submit manual payment");
+  }
+};
+
+// Payments waiting for staff verification
+export const getPendingPayments = async (req, res) => {
+  try {
+    if (!isStaff(req)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only employees or control users can review payments",
+      });
+    }
+
+    const payments = await Payment.find({
+      status: "pending",
+      paymentMode: "manual",
+      isDeleted: { $ne: true },
+    })
+      .populate("student", "name email")
+      .populate("course", "title")
+      .populate("internship", "title company")
+      .sort({ createdAt: 1 });
+
+    return res.json({
+      success: true,
+      payments,
+      data: payments,
+      count: payments.length,
+    });
+  } catch (error) {
+    return sendError(res, error, "Unable to load pending payments");
+  }
+};
+
+// Logged-in student's payment history
+export const getMyPayments = async (req, res) => {
+  try {
+    const student = getUserId(req);
+
+    if (!student) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const payments = await Payment.find({
+      student,
+      isDeleted: { $ne: true },
+    })
+      .populate("course", "title")
+      .populate("internship", "title company")
+      .sort({ createdAt: -1 });
+
+    return res.json({
+      success: true,
+      payments,
+      data: payments,
+      count: payments.length,
+    });
+  } catch (error) {
+    return sendError(res, error, "Unable to load your payments");
+  }
+};
+
+// Payment history for a specific student — staff only
+export const getStudentPayments = async (req, res) => {
+  try {
+    if (!isStaff(req)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only employees or control users can view another student's payment history",
+      });
+    }
+
+    const { studentId } = req.params;
+
+    if (!isValidId(studentId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid student ID",
+      });
+    }
+
+    const payments = await Payment.find({
+      student: studentId,
+      isDeleted: { $ne: true },
+    })
+      .populate("course", "title")
+      .populate("internship", "title company")
+      .sort({ createdAt: -1 });
+
+    return res.json({
+      success: true,
+      payments,
+      data: payments,
+      count: payments.length,
+    });
+  } catch (error) {
+    return sendError(res, error, "Unable to load student payment history");
+  }
+};
+
+// Get one payment by ID
+export const getPaymentById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!isValidId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment ID",
+      });
+    }
+
+    const payment = await Payment.findOne({
+      _id: id,
+      isDeleted: { $ne: true },
+    })
+      .populate("student", "name email")
+      .populate("course", "title")
+      .populate("internship", "title company");
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment not found",
+      });
+    }
+
+    if (
+      !isStaff(req) &&
+      String(payment.student?._id || payment.student) !==
+        String(getUserId(req))
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot view this payment",
+      });
+    }
+
+    return res.json({
+      success: true,
+      payment,
+      data: payment,
+    });
+  } catch (error) {
+    return sendError(res, error, "Unable to load payment details");
+  }
+};
+
+export const getPaymentStatus = async (req, res) =>
+  getPaymentById(req, res);
+
+// Approve a manual payment and activate its enrollment
+export const approveManualPayment = async (req, res) => {
+  try {
+    if (!isStaff(req)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only employees or control users can approve payments",
+      });
+    }
+
+    const { id } = req.params;
+
+    if (!isValidId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment ID",
+      });
+    }
+
+    const payment = await Payment.findOne({
+      _id: id,
+      isDeleted: { $ne: true },
+    });
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment not found",
+      });
+    }
+
+    if (payment.status === "rejected") {
+      return res.status(409).json({
+        success: false,
+        message: "Rejected payment cannot be approved",
+      });
+    }
+
+    if (payment.paymentMode !== "manual") {
+      return res.status(400).json({
+        success: false,
+        message: "This endpoint is for manual payments only",
+      });
+    }
+
+    payment.verifiedBy = getUserId(req);
+    payment.verifiedAt = new Date();
+
+    await payment.save();
+
+    const data = await activateApprovedPayment(payment._id);
+
+    return res.json({
+      success: true,
+      message: "Payment approved and enrollment activated",
+      data,
+    });
+  } catch (error) {
+    return sendError(res, error, "Unable to approve payment");
+  }
+};
+
+// Reject a manual payment
+export const rejectManualPayment = async (req, res) => {
+  try {
+    if (!isStaff(req)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only employees or control users can reject payments",
+      });
+    }
+
+    const { id } = req.params;
+
+    if (!isValidId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment ID",
+      });
+    }
+
+    const payment = await Payment.findOne({
+      _id: id,
+      isDeleted: { $ne: true },
+    });
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment not found",
+      });
+    }
+
+    if (payment.status === "approved") {
+      return res.status(409).json({
+        success: false,
+        message: "An approved payment cannot be rejected",
+      });
+    }
+
+    payment.status = "rejected";
+    payment.rejectionReason = String(
+      req.body?.rejectionReason || ""
+    ).trim();
+    payment.verifiedBy = getUserId(req);
+    payment.verifiedAt = new Date();
+
+    await payment.save();
+
+    return res.json({
+      success: true,
+      message: "Payment rejected",
+      payment,
+    });
+  } catch (error) {
+    return sendError(res, error, "Unable to reject payment");
+  }
+};
+
+export const rejectPayment = rejectManualPayment;
+
+export default {
+  createOrder,
+  verifyPayment,
+  getPaymentStatus,
+  createManualPayment,
+  getPendingPayments,
+  getPaymentById,
+  approveManualPayment,
+  rejectManualPayment,
+  rejectPayment,
+  getStudentPayments,
+  getMyPayments,
 };

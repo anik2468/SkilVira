@@ -66,6 +66,30 @@ const ambassadorProfileSchema = new mongoose.Schema(
       trim: true,
     },
 
+    course: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    branch: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    semester: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    graduationYear: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
     // =========================================
     // AUTO REFERRAL CODE
     // =========================================

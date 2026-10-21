@@ -1,5 +1,6 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import {
   FiBookOpen,
@@ -14,7 +15,7 @@ import {
   getCourses,
 } from "../../services/courseService";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = API_ORIGIN;
 
 
 // =====================================================
@@ -45,6 +46,7 @@ const getImageUrl = (image) => {
 
 const Courses = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [courses, setCourses] = useState([]);
 
@@ -55,7 +57,7 @@ const Courses = () => {
 
   const [error, setError] = useState("");
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => searchParams.get("search") || "");
 
   const [category, setCategory] =
     useState("all");
@@ -114,6 +116,10 @@ const Courses = () => {
     loadCourses();
   }, []);
 
+  useEffect(() => {
+    setSearch(searchParams.get("search") || "");
+  }, [searchParams]);
+
 
   // ======================================
   // Categories
@@ -163,11 +169,11 @@ const Courses = () => {
             course?.description || ""
           ).toLowerCase();
 
+        const searchText = `${title} ${courseCategory} ${description}`;
+        const terms = keyword.split(/\s+/).filter(Boolean);
         const matchesSearch =
           !keyword ||
-          title.includes(keyword) ||
-          courseCategory.includes(keyword) ||
-          description.includes(keyword);
+          terms.every((term) => searchText.includes(term));
 
         const matchesCategory =
           category === "all" ||
@@ -516,7 +522,7 @@ const Courses = () => {
                       type="button"
                       onClick={() =>
                         navigate(
-                          `/student/courses/${course._id}`
+                          `/courses/${course._id}`
                         )
                       }
                       className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#D4AF37] py-3 text-sm font-bold text-white transition hover:bg-[#b99520]"

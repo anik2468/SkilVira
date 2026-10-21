@@ -15,6 +15,8 @@ import {
   getCourseLessons,
 } from "../../services/lessonService";
 
+import api from "../../services/api";
+
 import {
   completeLesson,
   getCourseProgress,
@@ -39,6 +41,114 @@ const getStoredUser = () => {
   }
 };
 
+
+
+const LiveClassesPanel = ({ courseId }) => {
+  const [classes, setClasses] = useState([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      try {
+        const { data } = await api.get(`/live-classes/course/${courseId}`);
+        if (!active) return;
+        setClasses(Array.isArray(data?.classes) ? data.classes : []);
+        setError("");
+      } catch (err) {
+        if (!active) return;
+        setClasses([]);
+        setError(
+          err?.response?.data?.message ||
+          "Live classes are unavailable for this account."
+        );
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    load();
+    const timer = setInterval(load, 15000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [courseId]);
+
+  if (loading) {
+    return (
+      <section className="rounded-2xl border border-gray-200 bg-white p-5">
+        <p className="text-sm text-gray-500">Loading live classes...</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wider text-[#9B7B16]">
+            Live classroom
+          </p>
+          <h2 className="mt-1 text-xl font-black text-gray-950">
+            Live Classes
+          </h2>
+        </div>
+        <span className="rounded-full bg-[#D4AF37]/15 px-3 py-1.5 text-xs font-bold text-[#80620D]">
+          Video · Chat · Live Quiz
+        </span>
+      </div>
+
+      {error ? (
+        <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+          {error}
+        </p>
+      ) : classes.length === 0 ? (
+        <p className="mt-4 text-sm text-gray-500">
+          No live sessions are scheduled for this course yet.
+        </p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {classes.map((item) => (
+            <div
+              key={item._id}
+              className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="font-bold text-gray-950">{item.title}</p>
+                <p className="mt-1 text-sm text-gray-600">
+                  {new Date(item.scheduledAt).toLocaleString()} · {item.durationMinutes} min
+                </p>
+                {item.description && (
+                  <p className="mt-1 text-sm text-gray-500">{item.description}</p>
+                )}
+                <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                  item.status === "live"
+                    ? "bg-red-100 text-red-700"
+                    : item.status === "ended"
+                      ? "bg-gray-100 text-gray-600"
+                      : "bg-blue-50 text-blue-700"
+                }`}>
+                  {item.status === "live" ? "LIVE NOW" : item.status.toUpperCase()}
+                </span>
+              </div>
+              {item.status === "live" && (
+                <a
+                  href={`/student/live-class/${item._id}`}
+                  className="inline-flex shrink-0 items-center justify-center rounded-xl bg-[#D4AF37] px-4 py-3 text-sm font-black text-gray-950 hover:bg-[#c6a027]"
+                >
+                  Join Live Class
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
 
 const getLessonId = (item) => {
   if (!item) return "";
@@ -80,6 +190,318 @@ const getProgressValue = (
     )
   );
 };
+
+
+
+
+function LessonAssessments({ lesson }) {
+  const [answers, setAnswers] = useState({});
+  const [submissions, setSubmissions] = useState({});
+  const [messages, setMessages] = useState({});
+  const [busy, setBusy] = useState("");
+
+  const assessments = (lesson?.assessments || []).filter(
+    (item) => item.isPublished !== false
+  );
+
+  if (!lesson || assessments.length === 0) return null;
+
+  const optionLabel = (option) =>
+    typeof option === "string"
+      ? option
+      : option?.text || option?.label || "";
+
+  const submit = async (assessment) => {
+    const assessmentId = assessment._id;
+    const questions = assessment.questions || [];
+    let payload;
+
+    if (assessment.type === "assignment") {
+      const submissionText = submissions[assessmentId]?.trim() || "";
+      if (!submissionText) {
+        setMessages((prev) => ({
+          ...prev,
+          [assessmentId]: {
+            error: "Please write your assignment submission first.",
+          },
+        }));
+        return;
+      }
+      payload = { submissionText };
+    } else {
+      const submittedAnswers = {};
+      for (const question of questions) {
+        const answer = answers[assessmentId]?.[question._id];
+        if (
+          answer === undefined ||
+          answer === "" ||
+          (Array.isArray(answer) && answer.length === 0)
+        ) {
+          setMessages((prev) => ({
+            ...prev,
+            [assessmentId]: {
+              error: "Please answer every question before submitting.",
+            },
+          }));
+          return;
+        }
+        submittedAnswers[question._id] = answer;
+      }
+      payload = { answers: submittedAnswers };
+    }
+
+    setBusy(assessmentId);
+    setMessages((prev) => ({ ...prev, [assessmentId]: null }));
+
+    try {
+      const response = await api.post(
+        `/lessons/${lesson._id}/assessments/${assessmentId}/submit`,
+        payload
+      );
+
+      const data = response?.data || {};
+      const result =
+        data.attempt ||
+        data.result ||
+        data.data?.attempt ||
+        data.data ||
+        data;
+
+      setMessages((prev) => ({
+        ...prev,
+        [assessmentId]: {
+          success: true,
+          result,
+          text:
+            assessment.type === "assignment"
+              ? "Assignment submitted successfully. It is pending employee grading."
+              : "Assessment submitted successfully.",
+        },
+      }));
+    } catch (error) {
+      setMessages((prev) => ({
+        ...prev,
+        [assessmentId]: {
+          error:
+            error?.response?.data?.message ||
+            error?.response?.data?.error ||
+            "Submission failed. Please try again.",
+        },
+      }));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <div className="mt-8 space-y-5 border-t border-gray-700 pt-6">
+      <div>
+        <h3 className="text-lg font-bold text-white">Assessments</h3>
+        <p className="mt-1 text-sm text-gray-400">
+          Complete the quiz, test, or assignment for this lesson.
+        </p>
+      </div>
+
+      {assessments.map((assessment) => {
+        const questions = assessment.questions || [];
+        const message = messages[assessment._id];
+        const isAssignment = assessment.type === "assignment";
+
+        return (
+          <form
+            key={assessment._id}
+            onSubmit={(event) => {
+              event.preventDefault();
+              submit(assessment);
+            }}
+            className="space-y-5 rounded-xl border border-gray-700 bg-gray-900 p-4 sm:p-5"
+          >
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="font-bold text-white">
+                  {assessment.title}
+                </h4>
+                <span className="rounded-full bg-gray-800 px-2.5 py-1 text-xs capitalize text-gray-300">
+                  {(assessment.type || "quiz").replace("_", " ")}
+                </span>
+              </div>
+              {assessment.description && (
+                <p className="mt-2 whitespace-pre-line text-sm text-gray-300">
+                  {assessment.description}
+                </p>
+              )}
+              <p className="mt-2 text-xs text-gray-400">
+                {assessment.durationMinutes
+                  ? `${assessment.durationMinutes} minutes`
+                  : "No time limit shown"}
+                {" · "}
+                {assessment.totalMarks ?? 0} marks
+                {" · "}
+                Max attempts: {assessment.maxAttempts || 1}
+              </p>
+            </div>
+
+            {isAssignment ? (
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-gray-200">
+                  Your assignment submission
+                </span>
+                <textarea
+                  value={submissions[assessment._id] || ""}
+                  onChange={(event) =>
+                    setSubmissions((prev) => ({
+                      ...prev,
+                      [assessment._id]: event.target.value,
+                    }))
+                  }
+                  rows={5}
+                  placeholder="Write your answer or paste a shareable link to your work..."
+                  className="w-full rounded-lg border border-gray-600 bg-gray-950 p-3 text-sm text-white outline-none focus:border-[#D4AF37]"
+                />
+              </label>
+            ) : (
+              <div className="space-y-5">
+                {questions.map((question, index) => {
+                  const value =
+                    answers[assessment._id]?.[question._id] ??
+                    (question.type === "multiple_select" ? [] : "");
+                  const options = question.options || [];
+
+                  return (
+                    <fieldset
+                      key={question._id || index}
+                      className="space-y-3"
+                    >
+                      <legend className="text-sm font-semibold leading-6 text-gray-100">
+                        {index + 1}. {question.prompt}
+                        <span className="ml-2 text-xs font-normal text-gray-400">
+                          ({question.marks} marks)
+                        </span>
+                      </legend>
+
+                      {question.type === "fill_blank" ? (
+                        <input
+                          type="text"
+                          value={value}
+                          onChange={(event) =>
+                            setAnswers((prev) => ({
+                              ...prev,
+                              [assessment._id]: {
+                                ...prev[assessment._id],
+                                [question._id]: event.target.value,
+                              },
+                            }))
+                          }
+                          placeholder="Enter your answer"
+                          className="w-full rounded-lg border border-gray-600 bg-gray-950 p-3 text-sm text-white outline-none focus:border-[#D4AF37]"
+                        />
+                      ) : options.map((option, optionIndex) => {
+                        const label = optionLabel(option);
+                        const multiple =
+                          question.type === "multiple_select";
+
+                        return (
+                          <label
+                            key={`${question._id}-${optionIndex}`}
+                            className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-700 p-3 text-sm text-gray-200 hover:border-gray-500"
+                          >
+                            <input
+                              type={multiple ? "checkbox" : "radio"}
+                              name={`${assessment._id}-${question._id}`}
+                              checked={
+                                multiple
+                                  ? Array.isArray(value) && value.includes(label)
+                                  : value === label
+                              }
+                              onChange={(event) => {
+                                setAnswers((prev) => {
+                                  const current =
+                                    prev[assessment._id]?.[question._id];
+                                  let nextValue;
+
+                                  if (multiple) {
+                                    const selected = Array.isArray(current)
+                                      ? current
+                                      : [];
+                                    nextValue = event.target.checked
+                                      ? [...selected, label]
+                                      : selected.filter((item) => item !== label);
+                                  } else {
+                                    nextValue = label;
+                                  }
+
+                                  return {
+                                    ...prev,
+                                    [assessment._id]: {
+                                      ...prev[assessment._id],
+                                      [question._id]: nextValue,
+                                    },
+                                  };
+                                });
+                              }}
+                              className="accent-[#D4AF37]"
+                            />
+                            <span>{label}</span>
+                          </label>
+                        );
+                      })}
+                    </fieldset>
+                  );
+                })}
+              </div>
+            )}
+
+            {message?.error && (
+              <p role="alert" className="text-sm text-red-400">
+                {message.error}
+              </p>
+            )}
+
+            {message?.success && (
+              <div className="rounded-lg border border-green-800 bg-green-950/40 p-3 text-sm text-green-300">
+                <p>{message.text}</p>
+                {!isAssignment &&
+                  message.result?.score !== undefined && (
+                    <p className="mt-1 font-bold">
+                      Score: {message.result.score} /{" "}
+                      {message.result.maxMarks ?? assessment.totalMarks}
+                    </p>
+                  )}
+                {isAssignment && message.result?.score !== undefined && (
+                  <p className="mt-1">
+                    Marks: {message.result.score} /{" "}
+                    {message.result.maxMarks ?? assessment.totalMarks}
+                  </p>
+                )}
+                {isAssignment &&
+                  message.result?.status !== "graded" && (
+                    <p className="mt-1">Status: Pending grading</p>
+                  )}
+                {message.result?.feedback && (
+                  <p className="mt-1">
+                    Feedback: {message.result.feedback}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={busy === assessment._id}
+              className="rounded-lg bg-[#D4AF37] px-5 py-3 text-sm font-bold text-gray-950 transition hover:bg-[#b99520] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {busy === assessment._id
+                ? "Submitting..."
+                : isAssignment
+                  ? "Submit Assignment"
+                  : "Submit Assessment"}
+            </button>
+          </form>
+        );
+      })}
+    </div>
+  );
+}
 
 
 const LearnCourse = () => {
@@ -618,6 +1040,9 @@ const LearnCourse = () => {
       </section>
 
 
+      {/* LIVE CLASSES PANEL */}
+      <LiveClassesPanel courseId={id} />
+
       {/* Inline Error */}
       {error && lessons.length > 0 && (
         <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -733,6 +1158,8 @@ const LearnCourse = () => {
                     </p>
                   )}
 
+
+                  <LessonAssessments lesson={selectedLesson} />
 
                   {/* Actions */}
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">

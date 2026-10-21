@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -23,6 +24,8 @@ import {
   deleteInternship,
 } from "../../services/internshipService";
 
+import { useAuth } from "../../context/AuthContext";
+
 const GOLD = "#D4AF37";
 
 const FILTERS = [
@@ -35,6 +38,8 @@ const FILTERS = [
 ];
 
 const ManageInternships = () => {
+  const { user } = useAuth();
+  const recruiterId = user?.id || user?._id;
   const navigate = useNavigate();
 
   const [internships, setInternships] =
@@ -65,8 +70,13 @@ const ManageInternships = () => {
     useState("");
 
   useEffect(() => {
-    loadInternships();
-  }, []);
+    if (recruiterId) {
+      loadInternships();
+    } else {
+      setError("Recruiter session not found. Please log in again.");
+      setLoading(false);
+    }
+  }, [recruiterId]);
 
   const loadInternships = async (
     isRefresh = false
@@ -81,7 +91,7 @@ const ManageInternships = () => {
       setError("");
 
       const response =
-        await getRecruiterInternships();
+        await getRecruiterInternships(recruiterId);
 
       const list =
         response?.internships ||
@@ -1472,7 +1482,7 @@ const getAssetUrl = (
     return value;
   }
 
-  return `http://localhost:5000${value}`;
+  return `${API_ORIGIN}${value}`;
 };
 
 export default ManageInternships;

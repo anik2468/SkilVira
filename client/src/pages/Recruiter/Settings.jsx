@@ -6,6 +6,7 @@ import {
   FiChevronRight,
   FiEye,
   FiEyeOff,
+  FiFileText,
   FiKey,
   FiLock,
   FiLogOut,
@@ -299,7 +300,7 @@ const Settings = () => {
 
       setLoggingOut(false);
 
-      navigate("/login", {
+      navigate("/login/recruiter", {
         replace: true,
       });
     }

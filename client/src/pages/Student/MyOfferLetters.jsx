@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import React, { useEffect, useState } from "react";
 import {
   FiAward,
@@ -12,7 +13,7 @@ import {
   FiX,
 } from "react-icons/fi";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = API_ORIGIN;
 
 const getAuthToken = () => {
   return (

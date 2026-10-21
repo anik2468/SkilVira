@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -1206,7 +1207,7 @@ const getFileUrl = (file) => {
     return file;
   }
 
-  return `http://localhost:5000${file}`;
+  return `${API_ORIGIN}${file}`;
 
 };
 

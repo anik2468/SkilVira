@@ -30,6 +30,7 @@ const Login = () => {
 
   const navigate =
     useNavigate();
+  const requestedReturnTo = new URLSearchParams(window.location.search).get("returnTo");
 
   const roleName =
     role === "ambassador"
@@ -67,6 +68,14 @@ const Login = () => {
   const handleLoginSuccess = (
     user
   ) => {
+    if (user?.role === "student") {
+      const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+      if (returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")) {
+        navigate(returnTo);
+        return;
+      }
+    }
+
     switch (user?.role) {
       case "student":
         navigate(
@@ -449,7 +458,13 @@ const Login = () => {
                   <p className="text-sm text-slate-500">
                     Don't have an account?
                     <Link
-                      to="/register/student"
+                      to={
+                        requestedReturnTo &&
+                        requestedReturnTo.startsWith("/") &&
+                        !requestedReturnTo.startsWith("//")
+                          ? `/register/student?returnTo=${encodeURIComponent(requestedReturnTo)}`
+                          : "/register/student"
+                      }
                       className="ml-2 font-black text-[#A07F13] hover:text-[#D4AF37] hover:underline"
                     >
                       Create account

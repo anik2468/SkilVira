@@ -1,5 +1,7 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import api from "../../services/api";
 import {
   FiAlertCircle,
   FiBookOpen,
@@ -23,6 +25,13 @@ import {
 } from "../../services/courseService";
 
 const GOLD = "#D4AF37";
+
+const getCourseBasePath = () =>
+  window.location.pathname.startsWith("/employee")
+    ? "/employee/courses"
+    : "/control/courses";
+
+
 
 const Courses = () => {
   const [courses, setCourses] = useState([]);
@@ -53,10 +62,16 @@ const Courses = () => {
     description: "",
     category: "Development",
     duration: "",
+    registrationDeadline: "",
+    startDate: "",
+    endDate: "",
     price: 0,
     thumbnail: "",
     modules: "",
   });
+
+  const [thumbnailFile, setThumbnailFile] = useState(null);
+  const [thumbnailInputKey, setThumbnailInputKey] = useState(0);
 
   const [error, setError] =
     useState("");
@@ -161,6 +176,24 @@ const Courses = () => {
       setError("");
       setSuccess("");
 
+      let thumbnailUrl = "";
+
+      if (thumbnailFile) {
+        const uploadData = new FormData();
+        uploadData.append("thumbnail", thumbnailFile);
+
+        const { data: uploadResult } = await api.post(
+          "/upload/course-thumbnail",
+          uploadData
+        );
+
+        thumbnailUrl = uploadResult?.url || "";
+
+        if (!thumbnailUrl) {
+          throw new Error("Thumbnail upload did not return a file URL.");
+        }
+      }
+
       await createCourse({
         title: form.title.trim(),
 
@@ -174,11 +207,16 @@ const Courses = () => {
         duration:
           form.duration.trim(),
 
+        registrationDeadline: form.registrationDeadline || null,
+
+        startDate: form.startDate || null,
+
+        endDate: form.endDate || null,
+
         price:
           Number(form.price),
 
-        thumbnail:
-          form.thumbnail.trim(),
+        thumbnail: thumbnailUrl,
 
         modules:
           form.modules
@@ -194,10 +232,16 @@ const Courses = () => {
         description: "",
         category: "Development",
         duration: "",
+        registrationDeadline: "",
+        startDate: "",
+        endDate: "",
         price: 0,
         thumbnail: "",
         modules: "",
       });
+
+      setThumbnailFile(null);
+      setThumbnailInputKey((value) => value + 1);
 
       setSuccess(
         "Course created successfully."
@@ -526,6 +570,45 @@ const Courses = () => {
               placeholder="e.g. 12 Weeks"
             />
 
+            <div className="space-y-2">
+              <label className="block text-sm font-bold text-gray-800">
+                Registration Deadline
+              </label>
+              <input
+                type="date"
+                name="registrationDeadline"
+                value={form.registrationDeadline}
+                onChange={changeHandler}
+                className="w-full rounded-xl border border-gray-200 bg-[#FAFAF8] px-4 py-3 text-sm outline-none focus:border-[#D4AF37]"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-bold text-gray-800">
+                Course Start Date
+              </label>
+              <input
+                type="date"
+                name="startDate"
+                value={form.startDate}
+                onChange={changeHandler}
+                className="w-full rounded-xl border border-gray-200 bg-[#FAFAF8] px-4 py-3 text-sm outline-none focus:border-[#D4AF37]"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-bold text-gray-800">
+                Course End Date
+              </label>
+              <input
+                type="date"
+                name="endDate"
+                value={form.endDate}
+                onChange={changeHandler}
+                className="w-full rounded-xl border border-gray-200 bg-[#FAFAF8] px-4 py-3 text-sm outline-none focus:border-[#D4AF37]"
+              />
+            </div>
+
             <Field
               label="Price"
               name="price"
@@ -536,13 +619,28 @@ const Courses = () => {
               prefix="₹"
             />
 
-            <Field
-              label="Thumbnail URL"
-              name="thumbnail"
-              value={form.thumbnail}
-              onChange={changeHandler}
-              placeholder="https://..."
-            />
+            <div className="space-y-2">
+              <label className="block text-sm font-bold text-gray-800">
+                Course Thumbnail (optional)
+              </label>
+              <input
+                key={thumbnailInputKey}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(event) =>
+                  setThumbnailFile(event.target.files?.[0] || null)
+                }
+                className="block w-full rounded-xl border border-gray-200 bg-white p-3 text-sm"
+              />
+              <p className="text-xs text-gray-500">
+                JPG, PNG or WEBP · Maximum 5 MB
+              </p>
+              {thumbnailFile && (
+                <p className="text-sm text-green-700">
+                  Selected: {thumbnailFile.name}
+                </p>
+              )}
+            </div>
 
             <Field
               label="Modules"
@@ -580,6 +678,9 @@ const Courses = () => {
                   description: "",
                   category: "Development",
                   duration: "",
+                  registrationDeadline: "",
+                  startDate: "",
+                  endDate: "",
                   price: 0,
                   thumbnail: "",
                   modules: "",
@@ -882,7 +983,7 @@ const CourseCard = ({
           </button>
 
           <Link
-            to={`/control/courses/${course?._id}/lessons`}
+            to={`${getCourseBasePath()}/${course?._id}/lessons`}
             className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/5 px-2 py-2.5 text-xs font-black text-[#8D7414]"
           >
             <FiBookOpen />
@@ -1041,7 +1142,7 @@ const CourseModal = ({
 
           <div className="flex flex-wrap justify-end gap-2">
             <Link
-              to={`/control/courses/${course?._id}/lessons`}
+              to={`${getCourseBasePath()}/${course?._id}/lessons`}
               onClick={onClose}
               className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-xs font-black text-black"
               style={{
@@ -1240,7 +1341,7 @@ const getAssetUrl = (
     return value;
   }
 
-  return `http://localhost:5000${value}`;
+  return `${API_ORIGIN}${value}`;
 };
 
 export default Courses;

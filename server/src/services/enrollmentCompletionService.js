@@ -1,5 +1,7 @@
-import Enrollment from "../models/Enrollment.js";
+import fs from "fs";
+import path from "path";
 
+import Enrollment from "../models/Enrollment.js";
 import User from "../models/User.js";
 import CertificateTemplate from "../models/CertificateTemplate.js";
 import GeneratedCertificate from "../models/GeneratedCertificate.js";
@@ -10,6 +12,14 @@ import GeneratedReport from "../models/GeneratedReport.js";
 import {
   createNotification,
 } from "./notificationService.js";
+
+import {
+  generateCertificate,
+} from "./certificateGenerator.js";
+
+import {
+  generateReport,
+} from "./reportGenerator.js";
 
 
 // =====================================================
@@ -36,19 +46,59 @@ const today = () => {
 
 
 // =====================================================
+// TEMPLATE FILE PATH HELPER
+// =====================================================
+
+const resolveTemplatePath = (
+  templateFile
+) => {
+  if (!templateFile) {
+    return "";
+  }
+
+  const value = String(
+    templateFile
+  ).trim();
+
+  if (!value) {
+    return "";
+  }
+
+  // Remote URL is returned as-is.
+  // Local generators normally use local upload paths.
+  if (
+    value.startsWith("http://") ||
+    value.startsWith("https://")
+  ) {
+    return value;
+  }
+
+  // Normalize /uploads/... to <server-root>/uploads/...
+  return path.resolve(
+    process.cwd(),
+    value.replace(/^\/+/, "")
+  );
+};
+
+
+// =====================================================
 // GET PROGRAM INFORMATION
 // =====================================================
 
-const getProgramInfo = (enrollment) => {
+const getProgramInfo = (
+  enrollment
+) => {
   const course =
     enrollment.course &&
-    typeof enrollment.course === "object"
+    typeof enrollment.course ===
+      "object"
       ? enrollment.course
       : null;
 
   const internship =
     enrollment.internship &&
-    typeof enrollment.internship === "object"
+    typeof enrollment.internship ===
+      "object"
       ? enrollment.internship
       : null;
 
@@ -85,6 +135,7 @@ const getProgramInfo = (enrollment) => {
 const findCertificateTemplate = async (
   enrollment
 ) => {
+
   // ---------------------------------------------------
   // Course-specific certificate
   // ---------------------------------------------------
@@ -112,10 +163,11 @@ const findCertificateTemplate = async (
 
 
   // ---------------------------------------------------
-  // Internship-specific template
-  // CertificateTemplate supports internship type,
-  // but current schema does not depend on internshipId.
-  // So use active internship certificate template.
+  // Internship certificate
+  //
+  // Current CertificateTemplate schema does not contain
+  // internshipId, so use the active internship
+  // certificate template.
   // ---------------------------------------------------
 
   if (enrollment.internship) {
@@ -178,8 +230,9 @@ const findCertificateTemplate = async (
 const findReportTemplate = async (
   enrollment
 ) => {
+
   // ---------------------------------------------------
-  // Internship-specific
+  // Internship-specific report
   // ---------------------------------------------------
 
   if (enrollment.internship) {
@@ -202,7 +255,7 @@ const findReportTemplate = async (
 
 
   // ---------------------------------------------------
-  // Course-specific
+  // Course-specific report
   // ---------------------------------------------------
 
   if (enrollment.course) {
@@ -283,7 +336,9 @@ const findReportTemplate = async (
 // =====================================================
 
 const findExistingCertificate =
-  async (enrollment) => {
+  async (
+    enrollment
+  ) => {
 
     const query = {
       student:
@@ -323,7 +378,9 @@ const findExistingCertificate =
 // =====================================================
 
 const findExistingReport =
-  async (enrollment) => {
+  async (
+    enrollment
+  ) => {
 
     const query = {
       student:
@@ -359,7 +416,9 @@ const findExistingReport =
 
 
 // =====================================================
-// CREATE CERTIFICATE
+// CREATE GENERATED CERTIFICATE
+// Creates DRAFT certificate + QR
+// Status remains pending for employee verification
 // =====================================================
 
 const createGeneratedCertificate =
@@ -368,11 +427,14 @@ const createGeneratedCertificate =
     student
   ) => {
 
+    // -------------------------------------------------
+    // Existing certificate check
+    // -------------------------------------------------
+
     const existing =
       await findExistingCertificate(
         enrollment
       );
-
 
     if (existing) {
       return {
@@ -384,15 +446,21 @@ const createGeneratedCertificate =
 
         templateMissing:
           false,
+
+        generationError:
+          false,
       };
     }
 
+
+    // -------------------------------------------------
+    // Find active template
+    // -------------------------------------------------
 
     const template =
       await findCertificateTemplate(
         enrollment
       );
-
 
     if (!template) {
       return {
@@ -404,9 +472,46 @@ const createGeneratedCertificate =
 
         templateMissing:
           true,
+
+        generationError:
+          false,
       };
     }
 
+
+    // -------------------------------------------------
+    // Validate template file
+    // -------------------------------------------------
+
+    const templatePath =
+      resolveTemplatePath(
+        template.templateFile
+      );
+
+    if (!templatePath) {
+      throw new Error(
+        "Certificate template file is missing."
+      );
+    }
+
+    if (
+      !templatePath.startsWith(
+        "http://"
+      ) &&
+      !templatePath.startsWith(
+        "https://"
+      ) &&
+      !fs.existsSync(templatePath)
+    ) {
+      throw new Error(
+        "Certificate template file could not be found on server."
+      );
+    }
+
+
+    // -------------------------------------------------
+    // Program information
+    // -------------------------------------------------
 
     const program =
       getProgramInfo(
@@ -414,11 +519,64 @@ const createGeneratedCertificate =
       );
 
 
+    // -------------------------------------------------
+    // Temporary credential ID
+    // Final generator value is saved back to DB.
+    // -------------------------------------------------
+
     const certificateId =
       generateId(
         "CERT"
       );
 
+
+    // -------------------------------------------------
+    // Generate DRAFT certificate PDF + QR
+    //
+    // QR position and size come from the selected
+    // certificate template.
+    // -------------------------------------------------
+
+    const generated =
+      await generateCertificate({
+        templatePath,
+
+        positions:
+          template.positions ||
+          {},
+
+        studentName:
+          student?.name ||
+          "",
+
+        courseName:
+          program.name,
+
+        credentialId:
+          certificateId,
+
+        issueDate:
+          today(),
+      });
+
+
+    if (
+      !generated?.certificateFile
+    ) {
+      throw new Error(
+        "Certificate draft file could not be generated."
+      );
+    }
+
+
+    const finalCredentialId =
+      generated.credentialId ||
+      certificateId;
+
+
+    // -------------------------------------------------
+    // Save generated certificate
+    // -------------------------------------------------
 
     const certificate =
       await GeneratedCertificate.create({
@@ -440,7 +598,15 @@ const createGeneratedCertificate =
         template:
           template._id,
 
-        certificateId,
+        certificateId:
+          finalCredentialId,
+
+        certificateFile:
+          generated.certificateFile,
+
+        qrCode:
+          generated.qrCode ||
+          "",
 
         data: {
 
@@ -472,8 +638,8 @@ const createGeneratedCertificate =
           issueDate:
             today(),
 
-          certificateId,
-
+          certificateId:
+            finalCredentialId,
         },
 
         status:
@@ -481,7 +647,6 @@ const createGeneratedCertificate =
 
         emailSent:
           false,
-
       });
 
 
@@ -494,12 +659,21 @@ const createGeneratedCertificate =
 
       templateMissing:
         false,
+
+      generationError:
+        false,
     };
   };
 
 
 // =====================================================
-// CREATE REPORT
+// CREATE GENERATED REPORT
+// Creates DRAFT report document
+// Status remains pending for employee verification
+//
+// NOTE:
+// Report does NOT create public verification QR.
+// Only certificate has public QR verification.
 // =====================================================
 
 const createGeneratedReport =
@@ -508,11 +682,14 @@ const createGeneratedReport =
     student
   ) => {
 
+    // -------------------------------------------------
+    // Existing report check
+    // -------------------------------------------------
+
     const existing =
       await findExistingReport(
         enrollment
       );
-
 
     if (existing) {
       return {
@@ -524,15 +701,21 @@ const createGeneratedReport =
 
         templateMissing:
           false,
+
+        generationError:
+          false,
       };
     }
 
+
+    // -------------------------------------------------
+    // Find active report template
+    // -------------------------------------------------
 
     const template =
       await findReportTemplate(
         enrollment
       );
-
 
     if (!template) {
       return {
@@ -544,9 +727,46 @@ const createGeneratedReport =
 
         templateMissing:
           true,
+
+        generationError:
+          false,
       };
     }
 
+
+    // -------------------------------------------------
+    // Validate template file
+    // -------------------------------------------------
+
+    const templatePath =
+      resolveTemplatePath(
+        template.templateFile
+      );
+
+    if (!templatePath) {
+      throw new Error(
+        "Report template file is missing."
+      );
+    }
+
+    if (
+      !templatePath.startsWith(
+        "http://"
+      ) &&
+      !templatePath.startsWith(
+        "https://"
+      ) &&
+      !fs.existsSync(templatePath)
+    ) {
+      throw new Error(
+        "Report template file could not be found on server."
+      );
+    }
+
+
+    // -------------------------------------------------
+    // Program information
+    // -------------------------------------------------
 
     const program =
       getProgramInfo(
@@ -556,9 +776,78 @@ const createGeneratedReport =
 
     const reportId =
       generateId(
-        "REPORT"
+        "RPT"
       );
 
+
+    // -------------------------------------------------
+    // Generate DRAFT report
+    // -------------------------------------------------
+
+    const generated =
+      await generateReport({
+        templatePath,
+
+        fields:
+          template.fields ||
+          {},
+
+        positions:
+          template.positions ||
+          {},
+
+        studentName:
+          student?.name ||
+          "",
+
+        courseName:
+          program.name,
+
+        marks:
+          "",
+
+        grade:
+          "",
+
+        attendance:
+          "",
+
+        duration:
+          program.duration,
+
+        performance:
+          "",
+
+        feedback:
+          "",
+
+        issueDate:
+          today(),
+
+        reportId,
+
+        instructorName:
+          "",
+      });
+
+
+    if (
+      !generated?.reportFile
+    ) {
+      throw new Error(
+        "Report draft file could not be generated."
+      );
+    }
+
+
+    const finalReportId =
+      generated.reportId ||
+      reportId;
+
+
+    // -------------------------------------------------
+    // Save generated report
+    // -------------------------------------------------
 
     const report =
       await GeneratedReport.create({
@@ -580,6 +869,9 @@ const createGeneratedReport =
         template:
           template._id,
 
+        reportFile:
+          generated.reportFile,
+
         data: {
 
           studentName:
@@ -610,11 +902,11 @@ const createGeneratedReport =
           issueDate:
             today(),
 
-          reportId,
+          reportId:
+            finalReportId,
 
           instructorName:
             "",
-
         },
 
         status:
@@ -622,7 +914,6 @@ const createGeneratedReport =
 
         emailSent:
           false,
-
       });
 
 
@@ -634,6 +925,9 @@ const createGeneratedReport =
         true,
 
       templateMissing:
+        false,
+
+      generationError:
         false,
     };
   };
@@ -665,12 +959,15 @@ const notifyStaff =
         isDeleted: {
           $ne: true,
         },
+
       }).select(
         "_id"
       );
 
 
-    for (const employee of staff) {
+    for (
+      const employee of staff
+    ) {
 
       try {
 
@@ -690,7 +987,8 @@ const notifyStaff =
           referenceModel,
 
           link:
-            link || "",
+            link ||
+            "",
         });
 
       } catch (error) {
@@ -713,22 +1011,31 @@ export const triggerEnrollmentCompletion =
     enrollmentId
   ) => {
 
+    // -------------------------------------------------
+    // Load enrollment
+    // -------------------------------------------------
+
     const enrollment =
       await Enrollment.findOne({
+
         _id:
           enrollmentId,
 
         isDeleted:
           false,
+
       })
+
         .populate(
           "student",
           "name email"
         )
+
         .populate(
           "course",
           "title duration"
         )
+
         .populate(
           "internship",
           "title company duration location workMode"
@@ -736,7 +1043,6 @@ export const triggerEnrollmentCompletion =
 
 
     if (!enrollment) {
-
       throw new Error(
         "Enrollment not found."
       );
@@ -751,7 +1057,6 @@ export const triggerEnrollmentCompletion =
       enrollment.status ===
       "Cancelled"
     ) {
-
       throw new Error(
         "Cancelled enrollment cannot be completed."
       );
@@ -775,6 +1080,9 @@ export const triggerEnrollmentCompletion =
 
     // -------------------------------------------------
     // Duplicate protection
+    //
+    // Already fully processed means don't create
+    // duplicate certificate/report.
     // -------------------------------------------------
 
     if (
@@ -784,6 +1092,7 @@ export const triggerEnrollmentCompletion =
       await enrollment.save();
 
       return {
+
         success:
           true,
 
@@ -792,9 +1101,21 @@ export const triggerEnrollmentCompletion =
 
         enrollmentId:
           enrollment._id,
+
+        certificateId:
+          enrollment.certificate ||
+          null,
+
+        reportId:
+          enrollment.report ||
+          null,
       };
     }
 
+
+    // -------------------------------------------------
+    // Student
+    // -------------------------------------------------
 
     const student =
       enrollment.student;
@@ -811,7 +1132,9 @@ export const triggerEnrollmentCompletion =
     // CERTIFICATE
     // =================================================
 
-    let certificateResult = null;
+    let certificateResult =
+      null;
+
 
     try {
 
@@ -829,6 +1152,7 @@ export const triggerEnrollmentCompletion =
       );
 
       certificateResult = {
+
         document:
           null,
 
@@ -838,11 +1162,18 @@ export const triggerEnrollmentCompletion =
         templateMissing:
           false,
 
+        generationError:
+          true,
+
         error:
           error.message,
       };
     }
 
+
+    // -------------------------------------------------
+    // Save certificate reference
+    // -------------------------------------------------
 
     if (
       certificateResult?.document
@@ -857,6 +1188,10 @@ export const triggerEnrollmentCompletion =
         true;
 
 
+      // ------------------------------------------------
+      // Notify employee/control
+      // ------------------------------------------------
+
       if (
         certificateResult.created
       ) {
@@ -867,28 +1202,38 @@ export const triggerEnrollmentCompletion =
           );
 
 
-        await notifyStaff({
+        try {
 
-          type:
-            "certificate",
+          await notifyStaff({
 
-          referenceId:
-            certificateResult
-              .document
-              ._id,
+            type:
+              "certificate",
 
-          referenceModel:
-            "GeneratedCertificate",
+            referenceId:
+              certificateResult
+                .document
+                ._id,
 
-          title:
-            "Certificate Verification Required",
+            referenceModel:
+              "GeneratedCertificate",
 
-          message:
-            `${student.name || "Student"} has completed ${program.name}. The certificate is ready for verification.`,
+            title:
+              "Certificate Verification Required",
 
-          link:
-            `/employee/certificates/${certificateResult.document._id}`,
-        });
+            message:
+              `${student.name || "Student"} has completed ${program.name}. The certificate draft is ready for employee verification.`,
+
+            link:
+              "/employee/certificates/verification",
+          });
+
+        } catch (notificationError) {
+
+          console.error(
+            "CERTIFICATE NOTIFICATION ERROR:",
+            notificationError
+          );
+        }
       }
     }
 
@@ -897,7 +1242,9 @@ export const triggerEnrollmentCompletion =
     // REPORT
     // =================================================
 
-    let reportResult = null;
+    let reportResult =
+      null;
+
 
     try {
 
@@ -915,6 +1262,7 @@ export const triggerEnrollmentCompletion =
       );
 
       reportResult = {
+
         document:
           null,
 
@@ -924,11 +1272,18 @@ export const triggerEnrollmentCompletion =
         templateMissing:
           false,
 
+        generationError:
+          true,
+
         error:
           error.message,
       };
     }
 
+
+    // -------------------------------------------------
+    // Save report reference
+    // -------------------------------------------------
 
     if (
       reportResult?.document
@@ -943,6 +1298,10 @@ export const triggerEnrollmentCompletion =
         true;
 
 
+      // ------------------------------------------------
+      // Notify employee/control
+      // ------------------------------------------------
+
       if (
         reportResult.created
       ) {
@@ -953,38 +1312,67 @@ export const triggerEnrollmentCompletion =
           );
 
 
-        await notifyStaff({
+        try {
 
-          type:
-            "report",
+          await notifyStaff({
 
-          referenceId:
-            reportResult
-              .document
-              ._id,
+            type:
+              "report",
 
-          referenceModel:
-            "GeneratedReport",
+            referenceId:
+              reportResult
+                .document
+                ._id,
 
-          title:
-            "Report Verification Required",
+            referenceModel:
+              "GeneratedReport",
 
-          message:
-            `${student.name || "Student"} has completed ${program.name}. The performance report is ready for verification.`,
+            title:
+              "Report Verification Required",
 
-          link:
-            `/employee/reports/${reportResult.document._id}`,
-        });
+            message:
+              `${student.name || "Student"} has completed ${program.name}. The performance report is ready for employee verification.`,
+
+            link:
+              "/employee/reports/verification",
+          });
+
+        } catch (notificationError) {
+
+          console.error(
+            "REPORT NOTIFICATION ERROR:",
+            notificationError
+          );
+        }
       }
     }
 
 
     // =================================================
     // FINAL COMPLETION MARKER
+    //
+    // IMPORTANT:
+    // Do NOT lock the enrollment as triggered when
+    // template generation failed or a template is missing.
+    //
+    // This allows retry after employee uploads/activates
+    // the missing template.
     // =================================================
 
+    const certificateReady =
+      Boolean(
+        certificateResult?.document
+      );
+
+    const reportReady =
+      Boolean(
+        reportResult?.document
+      );
+
+
     enrollment.completionTriggered =
-      true;
+      certificateReady &&
+      reportReady;
 
 
     await enrollment.save();
@@ -1037,21 +1425,39 @@ export const triggerEnrollmentCompletion =
         reportResult
           ?.templateMissing ||
         false,
+
+      certificateGenerationError:
+        certificateResult
+          ?.generationError ||
+        false,
+
+      reportGenerationError:
+        reportResult
+          ?.generationError ||
+        false,
+
+      completionTriggered:
+        enrollment.completionTriggered,
     };
   };
 
 
 // =====================================================
 // MANUAL COMPLETION
+// Useful for employee/control
 // =====================================================
 
 export const markEnrollmentCompleted =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
 
     try {
 
       const enrollment =
         await Enrollment.findOne({
+
           _id:
             req.params.id,
 
@@ -1062,13 +1468,16 @@ export const markEnrollmentCompleted =
 
       if (!enrollment) {
 
-        return res.status(404).json({
-          success:
-            false,
+        return res
+          .status(404)
+          .json({
 
-          message:
-            "Enrollment not found.",
-        });
+            success:
+              false,
+
+            message:
+              "Enrollment not found.",
+          });
       }
 
 
@@ -1078,17 +1487,29 @@ export const markEnrollmentCompleted =
         );
 
 
-      return res.status(200).json({
+      const hasBothDocuments =
+        Boolean(
+          result?.certificateId
+        ) &&
+        Boolean(
+          result?.reportId
+        );
 
-        success:
-          true,
 
-        message:
-          "Enrollment completed successfully. Certificate and report are now in the verification queue.",
+      return res
+        .status(200)
+        .json({
 
-        result,
+          success:
+            true,
 
-      });
+          message:
+            hasBothDocuments
+              ? "Enrollment completed successfully. Certificate and report are now in the verification queue."
+              : "Enrollment completed, but one or more document templates are missing or could not be generated. The completion process can be retried.",
+
+          result,
+        });
 
     } catch (error) {
 
@@ -1098,14 +1519,16 @@ export const markEnrollmentCompleted =
       );
 
 
-      return res.status(500).json({
+      return res
+        .status(500)
+        .json({
 
-        success:
-          false,
+          success:
+            false,
 
-        message:
-          error.message,
-
-      });
+          message:
+            error.message ||
+            "Failed to complete enrollment.",
+        });
     }
   };

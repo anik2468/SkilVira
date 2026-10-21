@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { API_URL } from "../../services/urlConfig.js";
+import { useEffect, useState, useRef } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import {
   FiArrowLeft,
@@ -16,12 +17,10 @@ import {
   getCourse,
 } from "../../services/courseService";
 
-import {
-  createPaymentOrder,
-  verifyPayment,
-} from "../../services/paymentService";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = String(
+  import.meta.env.VITE_API_URL || API_URL
+).replace(/\/api\/?$/, "").replace(/\/$/, "");
 
 
 // =====================================================
@@ -46,6 +45,19 @@ const getImageUrl = (image) => {
 };
 
 
+const formatCourseDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+};
+
+
 const getUser = () => {
   try {
     return JSON.parse(
@@ -64,6 +76,8 @@ const getUser = () => {
 const CourseDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoEnrollStarted = useRef(false);
 
   const [course, setCourse] = useState(null);
 
@@ -146,6 +160,25 @@ const CourseDetails = () => {
     loadCourse();
   }, [id]);
 
+  useEffect(() => {
+    if (
+      loading ||
+      !course ||
+      searchParams.get("continueEnroll") !== "1" ||
+      autoEnrollStarted.current
+    ) {
+      return;
+    }
+
+    autoEnrollStarted.current = true;
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("continueEnroll");
+    setSearchParams(nextParams, { replace: true });
+
+    handleEnroll();
+  }, [course, loading, searchParams, setSearchParams]);
+
 
   // ======================================
   // Enroll / Razorpay
@@ -159,19 +192,18 @@ const CourseDetails = () => {
       const user = getUser();
 
       if (!user) {
-        navigate("/choose-role");
+        navigate(
+          `/login/student?returnTo=${encodeURIComponent(
+            `/student/courses/${course?._id || id}?continueEnroll=1`
+          )}`
+        );
         return;
       }
 
-      const studentId =
-        user?._id ||
-        user?.id ||
-        user?.userId;
-
-      if (!studentId) {
-        throw new Error(
-          "Student account could not be identified."
-        );
+      if (user?.role && user.role !== "student") {
+        setPaymentError("Please log in with a student account to enroll.");
+        setPaying(false);
+        return;
       }
 
       if (!course?._id) {
@@ -188,189 +220,23 @@ const CourseDetails = () => {
       // Free Course
       // ======================================
 
-      if (amount <= 0) {
-        alert(
-          "Free course enrollment flow will be handled by the course enrollment system."
-        );
+      if (course.registrationDeadline) {
+        const deadline = new Date(course.registrationDeadline);
+        deadline.setUTCHours(23, 59, 59, 999);
 
-        navigate(
-          `/student/courses/${course._id}`
-        );
-
-        return;
-      }
-
-      // ======================================
-      // Create Razorpay Order
-      // ======================================
-
-      const orderData =
-        await createPaymentOrder({
-          student: studentId,
-          type: "course",
-          course: course._id,
-          amount,
-        });
-
-      if (
-        !orderData?.success &&
-        !orderData?.order
-      ) {
-        throw new Error(
-          orderData?.message ||
-            "Unable to create payment order."
-        );
-      }
-
-      const order =
-        orderData?.order;
-
-      const paymentId =
-        orderData?.paymentId;
-
-      if (!order?.id) {
-        throw new Error(
-          "Payment order was not created."
-        );
-      }
-
-      // ======================================
-      // Razorpay Library Check
-      // ======================================
-
-      if (
-        typeof window === "undefined" ||
-        typeof window.Razorpay !==
-          "function"
-      ) {
-        throw new Error(
-          "Razorpay is not loaded. Please refresh the page and try again."
-        );
-      }
-
-      const options = {
-        key:
-          import.meta.env
-            .VITE_RAZORPAY_KEY_ID,
-
-        amount:
-          order.amount,
-
-        currency:
-          order.currency ||
-          "INR",
-
-        name:
-          "SkilVira",
-
-        description:
-          course.title,
-
-        order_id:
-          order.id,
-
-        handler:
-          async (
-            response
-          ) => {
-            try {
-              const verifyData =
-                await verifyPayment({
-                  razorpay_order_id:
-                    response
-                      ?.razorpay_order_id,
-
-                  razorpay_payment_id:
-                    response
-                      ?.razorpay_payment_id,
-
-                  razorpay_signature:
-                    response
-                      ?.razorpay_signature,
-
-                  paymentId:
-                    paymentId,
-                });
-
-              if (
-                verifyData?.success
-              ) {
-                alert(
-                  "Payment successful! Your enrollment is being activated. 🎉"
-                );
-
-                navigate(
-                  "/student/status"
-                );
-              } else {
-                setPaymentError(
-                  verifyData?.message ||
-                    "Payment verification failed."
-                );
-              }
-            } catch (err) {
-              console.error(
-                "Payment verification error:",
-                err
-              );
-
-              setPaymentError(
-                err?.response?.data
-                  ?.message ||
-                  err?.message ||
-                  "Payment verification failed."
-              );
-            } finally {
-              setPaying(false);
-            }
-          },
-
-        modal: {
-          ondismiss: () => {
-            setPaying(false);
-          },
-        },
-
-        prefill: {
-          name:
-            user?.name ||
-            "",
-
-          email:
-            user?.email ||
-            "",
-        },
-
-        theme: {
-          color:
-            "#D4AF37",
-        },
-      };
-
-      const razorpay =
-        new window.Razorpay(
-          options
-        );
-
-      razorpay.on(
-        "payment.failed",
-        (response) => {
-          console.error(
-            "Razorpay payment failed:",
-            response
-          );
-
-          setPaymentError(
-            response?.error
-              ?.description ||
-              "Payment failed. Please try again."
-          );
-
-          setPaying(false);
+        if (deadline.getTime() < Date.now()) {
+          setPaymentError("Registration for this course has closed.");
+          return;
         }
-      );
+      }
 
-      razorpay.open();
+      navigate(`/student/course-checkout/${course._id}`);
+      return;
+
+      navigate(`/student/course-checkout/${course._id}`);
+      return;
+
+
     } catch (err) {
       console.error(
         "handleEnroll error:",
@@ -445,7 +311,7 @@ const CourseDetails = () => {
             type="button"
             onClick={() =>
               navigate(
-                "/student/courses"
+                "/courses"
               )
             }
             className="mt-6 rounded-xl bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#b99520]"
@@ -481,7 +347,7 @@ const CourseDetails = () => {
         type="button"
         onClick={() =>
           navigate(
-            "/student/courses"
+            "/courses"
           )
         }
         className="inline-flex items-center gap-2 text-sm font-semibold text-gray-600 transition hover:text-[#8B6E12]"
@@ -682,6 +548,29 @@ const CourseDetails = () => {
                     : "Free"}
                 </span>
               </div>
+
+              {(course?.registrationDeadline || course?.startDate || course?.endDate) && (
+                <div className="mt-4 space-y-2 rounded-xl border border-gray-200 bg-white p-3 text-sm">
+                  {course?.registrationDeadline && (
+                    <p>
+                      <span className="font-semibold text-gray-700">Registration closes:</span>{" "}
+                      <span className="text-gray-600">{formatCourseDate(course.registrationDeadline)}</span>
+                    </p>
+                  )}
+                  {course?.startDate && (
+                    <p>
+                      <span className="font-semibold text-gray-700">Course starts:</span>{" "}
+                      <span className="text-gray-600">{formatCourseDate(course.startDate)}</span>
+                    </p>
+                  )}
+                  {course?.endDate && (
+                    <p>
+                      <span className="font-semibold text-gray-700">Course ends:</span>{" "}
+                      <span className="text-gray-600">{formatCourseDate(course.endDate)}</span>
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="mt-5 space-y-3">
                 <Feature

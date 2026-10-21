@@ -26,6 +26,12 @@ duration,
 
 price,
 
+registrationDeadline,
+
+startDate,
+
+endDate,
+
 thumbnail,
 
 modules,
@@ -68,6 +74,12 @@ level,
 duration,
 
 price,
+
+registrationDeadline,
+
+startDate,
+
+endDate,
 
 thumbnail,
 

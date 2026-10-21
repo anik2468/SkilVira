@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useState } from "react";
 import {
   FiMail,
@@ -11,15 +12,30 @@ import {
   FiEdit3,
   FiMapPin,
   FiPhone,
+  FiCamera,
+  FiUpload,
 } from "react-icons/fi";
 
 import api from "../../services/api";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = API_ORIGIN;
 
 const Profile = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
+  const [profileForm, setProfileForm] = useState({
+    designation: "", department: "", phone: "", officeEmail: "",
+    qualification: "", experience: "0", address: "", city: "",
+    state: "", country: "India", linkedin: "",
+  });
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState("");
+  const [photoUploading, setPhotoUploading] = useState(false);
+
 
   useEffect(() => {
     loadProfile();
@@ -41,6 +57,19 @@ const Profile = () => {
         JSON.parse(storedUser);
 
       setUser(localUser);
+      setProfileForm({
+        designation: localUser?.designation || "",
+        department: localUser?.department || "",
+        phone: localUser?.phone || "",
+        officeEmail: localUser?.officeEmail || localUser?.email || "",
+        qualification: localUser?.qualification || "",
+        experience: String(localUser?.experience ?? 0),
+        address: localUser?.address || "",
+        city: localUser?.city || "",
+        state: localUser?.state || "",
+        country: localUser?.country || "India",
+        linkedin: localUser?.linkedin || "",
+      });
 
       /*
        * Keep the page compatible with the
@@ -59,20 +88,51 @@ const Profile = () => {
           );
 
           const profileData =
-            response?.data?.user ||
+            response?.data?.profile ||
             response?.data?.employee ||
-            response?.data;
+            response?.data?.user ||
+            null;
 
-          if (
-            profileData &&
-            typeof profileData === "object"
-          ) {
-            setUser(profileData);
+          if (profileData && typeof profileData === "object") {
+            const account =
+              profileData.user && typeof profileData.user === "object"
+                ? profileData.user
+                : {};
 
-            localStorage.setItem(
-              "user",
-              JSON.stringify(profileData)
+            const accountId = String(
+              localUser?.id || localUser?._id ||
+              account?._id || ""
             );
+
+            const displayUser = {
+              ...localUser,
+              ...profileData,
+              ...account,
+              id: accountId,
+              _id: accountId,
+            };
+
+            setUser(displayUser);
+            setProfileForm({
+              designation: profileData.designation || "",
+              department: profileData.department || "",
+              phone: profileData.phone || "",
+              officeEmail: profileData.officeEmail || account.email || localUser?.email || "",
+              qualification: profileData.qualification || "",
+              experience: String(profileData.experience ?? 0),
+              address: profileData.address || "",
+              city: profileData.city || "",
+              state: profileData.state || "",
+              country: profileData.country || "India",
+              linkedin: profileData.linkedin || "",
+            });
+
+            localStorage.setItem("user", JSON.stringify({
+              ...localUser,
+              name: displayUser.name || localUser.name,
+              email: displayUser.email || localUser.email,
+              avatar: displayUser.avatar || localUser.avatar,
+            }));
           }
         } catch (profileError) {
           /*
@@ -93,6 +153,118 @@ const Profile = () => {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveProfile = async (event) => {
+    event.preventDefault();
+    const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+    const userId = user?.id || user?._id || storedUser?.id || storedUser?._id;
+
+    if (!userId) {
+      setSaveError("Account could not be identified. Please log in again.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setSaveError("");
+      setSaveMessage("");
+
+      const payload = {
+        ...profileForm,
+        experience: Math.max(0, Number(profileForm.experience || 0)),
+      };
+
+      const { data } = await api.put(`/employee/profile/${userId}`, payload);
+
+      if (data?.profile) {
+        setUser((current) => ({
+          ...current,
+          ...data.profile,
+          id: String(userId),
+          _id: String(userId),
+        }));
+      } else {
+        setUser((current) => ({ ...current, ...payload }));
+      }
+
+      setProfileForm((current) => ({
+        ...current,
+        experience: String(payload.experience),
+      }));
+      setIsEditing(false);
+      setSaveMessage("Profile details saved successfully.");
+    } catch (err) {
+      setSaveError(
+        err?.response?.data?.message || "Unable to save profile details."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const uploadProfilePhoto = async () => {
+    if (!photoFile) {
+      setSaveError("Please choose a photo first.");
+      return;
+    }
+
+    if (photoFile.size > 5 * 1024 * 1024) {
+      setSaveError("Photo must be 5 MB or smaller.");
+      return;
+    }
+
+    const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+    const userId = user?.id || user?._id || storedUser?.id || storedUser?._id;
+
+    if (!userId) {
+      setSaveError("Account could not be identified. Please log in again.");
+      return;
+    }
+
+    try {
+      setPhotoUploading(true);
+      setSaveError("");
+      setSaveMessage("");
+
+      const formData = new FormData();
+      formData.append("image", photoFile);
+
+      const { data } = await api.post(
+        "/upload/avatar",
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+
+      const photoUrl = data?.url || data?.path || data?.data?.url || data?.data?.path;
+      if (!photoUrl) throw new Error("Upload succeeded but the image URL was missing.");
+
+      await api.put(`/users/avatar/${userId}`, { avatar: photoUrl });
+
+      setUser((current) => ({
+        ...current,
+        id: String(userId),
+        _id: String(userId),
+        avatar: photoUrl,
+        profileImage: photoUrl,
+      }));
+
+      const latestUser = {
+        ...storedUser,
+        id: String(userId),
+        _id: String(userId),
+        avatar: photoUrl,
+      };
+      localStorage.setItem("user", JSON.stringify(latestUser));
+
+      setPhotoFile(null);
+      setPhotoPreview("");
+      setSaveMessage("Profile photo uploaded and saved.");
+    } catch (err) {
+      setSaveError(err?.response?.data?.message || err?.message || "Unable to upload profile photo.");
+    } finally {
+      setPhotoUploading(false);
     }
   };
 
@@ -239,14 +411,26 @@ const Profile = () => {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={loadProfile}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D4AF37] bg-white px-5 py-3 text-sm font-semibold text-[#D4AF37] transition hover:bg-[#D4AF37]/5"
-            >
-              <FiRefreshCw size={16} />
-              Refresh Profile
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setSaveError("");
+                  setSaveMessage("");
+                  setIsEditing((value) => !value);
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D4AF37] px-5 py-3 text-sm font-bold text-gray-950"
+              >
+                <FiEdit3 size={16} /> {isEditing ? "Close Editor" : "Edit Profile"}
+              </button>
+              <button
+                type="button"
+                onClick={loadProfile}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D4AF37] bg-white px-5 py-3 text-sm font-semibold text-[#D4AF37]"
+              >
+                <FiRefreshCw size={16} /> Refresh Profile
+              </button>
+            </div>
           </div>
 
           {/* Account badge */}
@@ -290,6 +474,104 @@ const Profile = () => {
           </div>
         </div>
       </section>
+
+      {saveError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{saveError}</div>}
+      {saveMessage && <div role="status" className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">{saveMessage}</div>}
+
+      {isEditing && (
+        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100 sm:p-7">
+          <h2 className="text-xl font-bold text-gray-900">Edit Profile Details</h2>
+          <p className="mt-1 text-sm text-gray-500">Update work and contact details. Role and account access cannot be changed here.</p>
+          <form onSubmit={saveProfile} className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 sm:col-span-2">
+              <h3 className="flex items-center gap-2 font-bold text-gray-900">
+                <FiCamera /> Profile Photo
+              </h3>
+              <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+                <img
+                  src={photoPreview || avatarUrl}
+                  alt="Profile preview"
+                  className="h-24 w-24 rounded-full border-4 border-white object-cover shadow"
+                />
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] || null;
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) {
+                        setSaveError("Photo must be 5 MB or smaller.");
+                        setPhotoFile(null);
+                        setPhotoPreview("");
+                        event.target.value = "";
+                        return;
+                      }
+                      setSaveError("");
+                      setPhotoFile(file);
+                      setPhotoPreview(URL.createObjectURL(file));
+                    }}
+                    className="block w-full text-sm"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    JPG, PNG, WEBP or GIF · Maximum 5 MB
+                  </p>
+                  <button
+                    type="button"
+                    onClick={uploadProfilePhoto}
+                    disabled={!photoFile || photoUploading}
+                    className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#D4AF37] px-4 py-2.5 text-sm font-bold text-gray-950 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <FiUpload />
+                    {photoUploading ? "Uploading…" : "Upload & Save Photo"}
+                  </button>
+                </div>
+              </div>
+            </div>
+            {[
+              ["designation", "Designation", "text"],
+              ["department", "Department", "text"],
+              ["phone", "Phone number", "tel"],
+              ["officeEmail", "Office email", "email"],
+              ["qualification", "Qualification", "text"],
+              ["experience", "Experience (years)", "number"],
+              ["city", "City", "text"],
+              ["state", "State", "text"],
+              ["country", "Country", "text"],
+              ["linkedin", "LinkedIn URL", "url"],
+            ].map(([name, label, type]) => (
+              <label key={name} className="block text-sm font-semibold text-gray-800">
+                {label}
+                <input
+                  type={type}
+                  value={profileForm[name] ?? ""}
+                  min={type === "number" ? "0" : undefined}
+                  max={type === "number" ? "80" : undefined}
+                  onChange={(event) => setProfileForm((current) => ({ ...current, [name]: event.target.value }))}
+                  className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-3 font-normal outline-none focus:border-[#D4AF37]"
+                />
+              </label>
+            ))}
+            <label className="block text-sm font-semibold text-gray-800 sm:col-span-2">
+              Address
+              <textarea
+                rows={3}
+                value={profileForm.address || ""}
+                onChange={(event) => setProfileForm((current) => ({ ...current, address: event.target.value }))}
+                className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-3 font-normal outline-none focus:border-[#D4AF37]"
+              />
+            </label>
+            <div className="flex flex-wrap gap-3 sm:col-span-2">
+              <button type="submit" disabled={saving} className="rounded-xl bg-black px-5 py-3 text-sm font-bold text-white disabled:opacity-50">
+                {saving ? "Saving…" : "Save Changes"}
+              </button>
+              <button type="button" onClick={() => setIsEditing(false)} className="rounded-xl border border-gray-200 px-5 py-3 text-sm font-bold text-gray-700">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
 
       {/* Information */}
       <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">

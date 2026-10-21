@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 import {
   FiActivity,
@@ -986,7 +987,7 @@ const getAvatarUrl = (
     return avatar;
   }
 
-  return `http://localhost:5000${avatar}`;
+  return `${API_ORIGIN}${avatar}`;
 };
 
 export default Students;

@@ -1,38 +1,61 @@
+import { API_ORIGIN, API_URL } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
-import api from "../../services/api";
 
 import {
-  FiFileText,
-  FiSearch,
-  FiRefreshCw,
   FiCheckCircle,
   FiClock,
-  FiAlertCircle,
-  FiUser,
+  FiEdit3,
   FiEye,
-  FiMoreVertical,
+  FiFileText,
+  FiRefreshCw,
+  FiSearch,
+  FiUser,
+  FiXCircle,
+  FiSave,
 } from "react-icons/fi";
 
-const Reports = () => {
-  const [stats, setStats] = useState({
-    total: 0,
-    pending: 0,
-    resolved: 0,
-  });
+import api from "../../services/api";
 
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  API_ORIGIN;
+
+const Reports = () => {
   const [reports, setReports] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] =
+    useState("all");
+
+  const [selectedReport, setSelectedReport] =
+    useState(null);
+
+  const [editingId, setEditingId] =
+    useState(null);
+
+  const [editData, setEditData] =
+    useState({});
+
+  const [processingId, setProcessingId] =
+    useState(null);
+
   const [error, setError] = useState("");
-  const [selectedReport, setSelectedReport] = useState(null);
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     loadReports();
   }, []);
 
-  const loadReports = async (isRefresh = false) => {
+  // =====================================================
+  // LOAD REPORTS
+  // =====================================================
+
+  const loadReports = async (
+    isRefresh = false
+  ) => {
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -42,31 +65,56 @@ const Reports = () => {
 
       setError("");
 
-      const { data } = await api.get("/reports");
+      const [pendingResponse, approvedResponse] =
+        await Promise.all([
+          api.get("/generated-report/pending"),
+          api.get("/generated-report/approved"),
+        ]);
 
-      setStats({
-        total: Number(data?.stats?.total) || 0,
-        pending:
-          Number(data?.stats?.pending) || 0,
-        resolved:
-          Number(data?.stats?.resolved) || 0,
+      const pendingReports = Array.isArray(
+        pendingResponse?.data?.reports
+      )
+        ? pendingResponse.data.reports
+        : [];
+
+      const approvedReports = Array.isArray(
+        approvedResponse?.data?.reports
+      )
+        ? approvedResponse.data.reports
+        : [];
+
+      const mergedMap = new Map();
+
+      [
+        ...pendingReports,
+        ...approvedReports,
+      ].forEach((report) => {
+        if (report?._id) {
+          mergedMap.set(report._id, report);
+        }
       });
 
       setReports(
-        Array.isArray(data?.reports)
-          ? data.reports
-          : []
+        Array.from(mergedMap.values()).sort(
+          (a, b) =>
+            new Date(
+              b?.createdAt || 0
+            ).getTime() -
+            new Date(
+              a?.createdAt || 0
+            ).getTime()
+        )
       );
     } catch (err) {
       console.error(
-        "Load reports error:",
+        "Load generated reports error:",
         err
       );
 
       setError(
         err?.response?.data?.message ||
           err?.message ||
-          "Unable to load reports."
+          "Unable to load generated reports."
       );
     } finally {
       setLoading(false);
@@ -74,41 +122,123 @@ const Reports = () => {
     }
   };
 
-  const normalizedStatus = (report) =>
-    String(
+  // =====================================================
+  // HELPERS
+  // =====================================================
+
+  const getStatus = (report) => {
+    return String(
       report?.status || "pending"
     ).toLowerCase();
+  };
+
+  const getStudentName = (report) => {
+    return (
+      report?.student?.name ||
+      report?.data?.studentName ||
+      "Student"
+    );
+  };
+
+  const getStudentEmail = (report) => {
+    return (
+      report?.student?.email ||
+      "No email"
+    );
+  };
+
+  const getProgramName = (report) => {
+    return (
+      report?.course?.title ||
+      report?.data?.courseName ||
+      report?.internship?.title ||
+      "Program"
+    );
+  };
+
+  const getReportId = (report) => {
+    return (
+      report?.reportId ||
+      report?.data?.reportId ||
+      report?._id ||
+      "-"
+    );
+  };
+
+  const getIssueDate = (report) => {
+    return (
+      report?.data?.issueDate ||
+      report?.createdAt ||
+      null
+    );
+  };
+
+  const formatDate = (date) => {
+    if (!date) return "-";
+
+    const value = new Date(date);
+
+    if (Number.isNaN(value.getTime())) {
+      return "-";
+    }
+
+    return value.toLocaleDateString(
+      "en-IN",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }
+    );
+  };
+
+  const reportFileUrl = (file) => {
+    if (!file) return "";
+
+    if (
+      file.startsWith("http://") ||
+      file.startsWith("https://")
+    ) {
+      return file;
+    }
+
+    return `${API_BASE}${file}`;
+  };
+
+  // =====================================================
+  // FILTER
+  // =====================================================
 
   const filteredReports = useMemo(() => {
     const query =
       search.trim().toLowerCase();
 
     return reports.filter((report) => {
-      const userName =
-        report?.user?.name
-          ?.toLowerCase() || "";
+      const studentName =
+        getStudentName(report)
+          .toLowerCase();
 
-      const userEmail =
-        report?.user?.email
-          ?.toLowerCase() || "";
+      const studentEmail =
+        getStudentEmail(report)
+          .toLowerCase();
 
-      const message =
-        report?.message
-          ?.toLowerCase() || "";
+      const programName =
+        getProgramName(report)
+          .toLowerCase();
 
-      const type =
-        report?.type
-          ?.toLowerCase() || "";
+      const reportId =
+        String(getReportId(report))
+          .toLowerCase();
 
       const status =
-        normalizedStatus(report);
+        getStatus(report);
 
       const matchesSearch =
         !query ||
-        userName.includes(query) ||
-        userEmail.includes(query) ||
-        message.includes(query) ||
-        type.includes(query);
+        studentName.includes(query) ||
+        studentEmail.includes(query) ||
+        programName.includes(query) ||
+        reportId.includes(query);
 
       const matchesStatus =
         statusFilter === "all" ||
@@ -125,26 +255,353 @@ const Reports = () => {
     statusFilter,
   ]);
 
+  // =====================================================
+  // EDIT
+  // =====================================================
+
+  const startEditing = (report) => {
+    setEditingId(report?._id);
+
+    setEditData({
+      studentName:
+        report?.data?.studentName ||
+        report?.student?.name ||
+        "",
+
+      courseName:
+        report?.data?.courseName ||
+        report?.course?.title ||
+        report?.internship?.title ||
+        "",
+
+      marks:
+        report?.data?.marks || "",
+
+      grade:
+        report?.data?.grade || "",
+
+      attendance:
+        report?.data?.attendance || "",
+
+      duration:
+        report?.data?.duration || "",
+
+      performance:
+        report?.data?.performance || "",
+
+      feedback:
+        report?.data?.feedback || "",
+
+      issueDate:
+        report?.data?.issueDate ||
+        "",
+
+      reportId:
+        report?.reportId ||
+        report?.data?.reportId ||
+        "",
+
+      instructorName:
+        report?.data?.instructorName ||
+        "",
+    });
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditData({});
+  };
+
+  const handleEditChange = (event) => {
+    const {
+      name,
+      value,
+    } = event.target;
+
+    setEditData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const saveChanges = async (id) => {
+    if (!id) return;
+
+    try {
+      setProcessingId(id);
+      setError("");
+
+      await api.put(
+        `/generated-report/${id}/update`,
+        {
+          data: editData,
+        }
+      );
+
+      setSuccess(
+        "Report details updated successfully."
+      );
+
+      cancelEditing();
+
+      await loadReports(true);
+
+      setTimeout(() => {
+        setSuccess("");
+      }, 2500);
+    } catch (err) {
+      console.error(
+        "Update report error:",
+        err
+      );
+
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unable to update report."
+      );
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // =====================================================
+  // APPROVE
+  // =====================================================
+
+  const approveReport = async (id) => {
+    if (!id) return;
+
+    const confirmed =
+      window.confirm(
+        "Approve this report and send it to the student?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setProcessingId(id);
+      setError("");
+
+      await api.put(
+        `/generated-report/${id}/approve`
+      );
+
+      setSuccess(
+        "Report approved and processed successfully."
+      );
+
+      setSelectedReport(null);
+
+      await loadReports(true);
+
+      setTimeout(() => {
+        setSuccess("");
+      }, 2500);
+    } catch (err) {
+      console.error(
+        "Approve report error:",
+        err
+      );
+
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unable to approve report."
+      );
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // =====================================================
+  // REVISION
+  // =====================================================
+
+  const requestRevision = async (id) => {
+    if (!id) return;
+
+    const remark =
+      window.prompt(
+        "Enter revision instructions for the report:"
+      );
+
+    if (!remark?.trim()) {
+      return;
+    }
+
+    try {
+      setProcessingId(id);
+      setError("");
+
+      await api.put(
+        `/generated-report/${id}/revision`,
+        {
+          remark: remark.trim(),
+        }
+      );
+
+      setSuccess(
+        "Revision request sent successfully."
+      );
+
+      setSelectedReport(null);
+
+      await loadReports(true);
+
+      setTimeout(() => {
+        setSuccess("");
+      }, 2500);
+    } catch (err) {
+      console.error(
+        "Request report revision error:",
+        err
+      );
+
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unable to request report revision."
+      );
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // =====================================================
+  // REJECT
+  // =====================================================
+
+  const rejectReport = async (id) => {
+    if (!id) return;
+
+    const reason =
+      window.prompt(
+        "Enter rejection reason:"
+      );
+
+    if (!reason?.trim()) {
+      return;
+    }
+
+    try {
+      setProcessingId(id);
+      setError("");
+
+      await api.put(
+        `/generated-report/${id}/reject`,
+        {
+          reason: reason.trim(),
+        }
+      );
+
+      setSuccess(
+        "Report rejected successfully."
+      );
+
+      setSelectedReport(null);
+
+      await loadReports(true);
+
+      setTimeout(() => {
+        setSuccess("");
+      }, 2500);
+    } catch (err) {
+      console.error(
+        "Reject report error:",
+        err
+      );
+
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unable to reject report."
+      );
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // =====================================================
+  // STATS
+  // =====================================================
+
+  const stats = useMemo(() => {
+    return {
+      total: reports.length,
+
+      pending: reports.filter(
+        (item) =>
+          getStatus(item) === "pending"
+      ).length,
+
+      revision: reports.filter(
+        (item) =>
+          getStatus(item) === "revision"
+      ).length,
+
+      approved: reports.filter(
+        (item) =>
+          getStatus(item) === "approved"
+      ).length,
+
+      rejected: reports.filter(
+        (item) =>
+          getStatus(item) === "rejected"
+      ).length,
+    };
+  }, [reports]);
+
+  // =====================================================
+  // LOADING
+  // =====================================================
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <FiRefreshCw
+            size={42}
+            className="mx-auto animate-spin text-[#D4AF37]"
+          />
+
+          <p className="mt-4 font-semibold text-gray-800">
+            Loading Reports...
+          </p>
+
+          <p className="mt-1 text-sm text-gray-500">
+            Fetching generated report verification queue.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-10">
-      {/* Header */}
+      {/* ================================================= */}
+      {/* HEADER */}
+      {/* ================================================= */}
+
       <section className="relative overflow-hidden rounded-3xl bg-[#111111] p-6 text-white shadow-sm sm:p-8">
         <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-[#D4AF37]/10 blur-3xl" />
 
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#D4AF37]">
-              <FiAlertCircle size={13} />
-              Platform Support
+              <FiFileText size={14} />
+              Report Operations
             </div>
 
             <h1 className="text-3xl font-bold sm:text-4xl">
-              Reports Management
+              Report Verification
             </h1>
 
             <p className="mt-2 text-sm leading-6 text-white/60 sm:text-base">
-              Monitor reported issues and complaints submitted across the
-              SkilVira platform.
+              Review generated student reports before
+              approval, rejection or final delivery.
             </p>
           </div>
 
@@ -164,6 +621,7 @@ const Reports = () => {
                   : ""
               }
             />
+
             {refreshing
               ? "Refreshing..."
               : "Refresh"}
@@ -171,51 +629,90 @@ const Reports = () => {
         </div>
       </section>
 
-      {/* Error */}
+      {/* ================================================= */}
+      {/* ALERTS */}
+      {/* ================================================= */}
+
       {error && (
         <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-700">
-          <FiAlertCircle
+          <FiXCircle
             size={18}
             className="mt-0.5 shrink-0"
           />
+
           <span>{error}</span>
+
+          <button
+            type="button"
+            onClick={() => setError("")}
+            className="ml-auto font-bold"
+          >
+            ×
+          </button>
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      {success && (
+        <div className="flex items-start gap-3 rounded-2xl border border-green-100 bg-green-50 px-5 py-4 text-sm text-green-700">
+          <FiCheckCircle
+            size={18}
+            className="mt-0.5 shrink-0"
+          />
+
+          <span>{success}</span>
+        </div>
+      )}
+
+      {/* ================================================= */}
+      {/* STATS */}
+      {/* ================================================= */}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
-          title="Total Reports"
+          title="Total"
           value={stats.total}
           icon={<FiFileText size={21} />}
         />
 
         <StatCard
-          title="Pending Reports"
+          title="Pending"
           value={stats.pending}
           icon={<FiClock size={21} />}
         />
 
         <StatCard
-          title="Resolved Reports"
-          value={stats.resolved}
-          icon={
-            <FiCheckCircle size={21} />
-          }
+          title="Revision"
+          value={stats.revision}
+          icon={<FiRefreshCw size={21} />}
+        />
+
+        <StatCard
+          title="Approved"
+          value={stats.approved}
+          icon={<FiCheckCircle size={21} />}
+        />
+
+        <StatCard
+          title="Rejected"
+          value={stats.rejected}
+          icon={<FiXCircle size={21} />}
         />
       </div>
 
-      {/* Reports */}
-      <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+      {/* ================================================= */}
+      {/* MAIN TABLE */}
+      {/* ================================================= */}
+
+      <section className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-gray-100">
         <div className="border-b border-gray-100 p-5 sm:p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <h2 className="text-xl font-bold text-gray-900">
-                Recent Reports
+                Generated Reports
               </h2>
 
               <p className="mt-1 text-sm text-gray-500">
-                Review issues reported by platform users.
+                Search and verify generated reports.
               </p>
             </div>
 
@@ -234,12 +731,12 @@ const Reports = () => {
                       event.target.value
                     )
                   }
-                  placeholder="Search reports..."
+                  placeholder="Search student, report ID..."
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#D4AF37] focus:bg-white focus:ring-2 focus:ring-[#D4AF37]/10"
                 />
               </div>
 
-              <div className="flex rounded-xl bg-gray-100 p-1">
+              <div className="flex flex-wrap rounded-xl bg-gray-100 p-1">
                 <FilterButton
                   active={
                     statusFilter === "all"
@@ -253,7 +750,8 @@ const Reports = () => {
 
                 <FilterButton
                   active={
-                    statusFilter === "pending"
+                    statusFilter ===
+                    "pending"
                   }
                   onClick={() =>
                     setStatusFilter(
@@ -266,15 +764,44 @@ const Reports = () => {
 
                 <FilterButton
                   active={
-                    statusFilter === "resolved"
+                    statusFilter ===
+                    "revision"
                   }
                   onClick={() =>
                     setStatusFilter(
-                      "resolved"
+                      "revision"
                     )
                   }
                 >
-                  Resolved
+                  Revision
+                </FilterButton>
+
+                <FilterButton
+                  active={
+                    statusFilter ===
+                    "approved"
+                  }
+                  onClick={() =>
+                    setStatusFilter(
+                      "approved"
+                    )
+                  }
+                >
+                  Approved
+                </FilterButton>
+
+                <FilterButton
+                  active={
+                    statusFilter ===
+                    "rejected"
+                  }
+                  onClick={() =>
+                    setStatusFilter(
+                      "rejected"
+                    )
+                  }
+                >
+                  Rejected
                 </FilterButton>
               </div>
             </div>
@@ -293,9 +820,7 @@ const Reports = () => {
           </p>
         </div>
 
-        {loading ? (
-          <LoadingState />
-        ) : filteredReports.length === 0 ? (
+        {filteredReports.length === 0 ? (
           <EmptyState
             hasSearch={Boolean(
               search.trim()
@@ -308,27 +833,31 @@ const Reports = () => {
           <>
             {/* Desktop */}
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[900px]">
+              <table className="w-full min-w-[1100px]">
                 <thead className="bg-gray-50">
                   <tr className="border-b border-gray-100">
                     <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide text-gray-500">
-                      User
+                      Student
                     </th>
 
                     <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide text-gray-500">
-                      Issue
+                      Program
                     </th>
 
                     <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide text-gray-500">
-                      Status
+                      Report ID
                     </th>
 
                     <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide text-gray-500">
                       Date
                     </th>
 
+                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wide text-gray-500">
+                      Status
+                    </th>
+
                     <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wide text-gray-500">
-                      Action
+                      Actions
                     </th>
                   </tr>
                 </thead>
@@ -336,16 +865,18 @@ const Reports = () => {
                 <tbody>
                   {filteredReports.map(
                     (report) => {
+                      const id =
+                        report?._id;
+
                       const status =
-                        normalizedStatus(
-                          report
-                        );
+                        getStatus(report);
+
+                      const processing =
+                        processingId === id;
 
                       return (
                         <tr
-                          key={
-                            report?._id
-                          }
+                          key={id}
                           className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50/70"
                         >
                           <td className="px-6 py-5">
@@ -358,25 +889,44 @@ const Reports = () => {
 
                               <div className="min-w-0">
                                 <p className="truncate font-semibold text-gray-900">
-                                  {report?.user
-                                    ?.name ||
-                                    "N/A"}
+                                  {getStudentName(
+                                    report
+                                  )}
                                 </p>
 
                                 <p className="mt-1 truncate text-xs text-gray-500">
-                                  {report?.user
-                                    ?.email ||
-                                    "No email"}
+                                  {getStudentEmail(
+                                    report
+                                  )}
                                 </p>
                               </div>
                             </div>
                           </td>
 
-                          <td className="max-w-[350px] px-6 py-5">
-                            <p className="truncate text-sm font-medium text-gray-700">
-                              {report?.message ||
-                                "-"}
-                            </p>
+                          <td className="px-6 py-5">
+                            <div className="max-w-[230px]">
+                              <p className="truncate text-sm font-semibold text-gray-800">
+                                {getProgramName(
+                                  report
+                                )}
+                              </p>
+                            </div>
+                          </td>
+
+                          <td className="px-6 py-5">
+                            <span className="break-all font-mono text-xs font-semibold text-gray-600">
+                              {getReportId(
+                                report
+                              )}
+                            </span>
+                          </td>
+
+                          <td className="px-6 py-5 text-sm text-gray-500">
+                            {formatDate(
+                              getIssueDate(
+                                report
+                              )
+                            )}
                           </td>
 
                           <td className="px-6 py-5">
@@ -387,16 +937,8 @@ const Reports = () => {
                             />
                           </td>
 
-                          <td className="px-6 py-5 text-sm text-gray-500">
-                            {report?.createdAt
-                              ? formatDate(
-                                  report.createdAt
-                                )
-                              : "-"}
-                          </td>
-
                           <td className="px-6 py-5">
-                            <div className="flex justify-end">
+                            <div className="flex justify-end gap-2">
                               <button
                                 type="button"
                                 onClick={() =>
@@ -411,6 +953,70 @@ const Reports = () => {
                                 />
                                 View
                               </button>
+
+                              {(status ===
+                                "pending" ||
+                                status ===
+                                  "revision") && (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      processing
+                                    }
+                                    onClick={() =>
+                                      approveReport(
+                                        id
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <FiCheckCircle
+                                      size={14}
+                                    />
+
+                                    Approve
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      processing
+                                    }
+                                    onClick={() =>
+                                      requestRevision(
+                                        id
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/5 px-3 py-2 text-xs font-semibold text-[#9b7a0c] transition hover:bg-[#D4AF37]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <FiRefreshCw
+                                      size={14}
+                                    />
+
+                                    Revision
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      processing
+                                    }
+                                    onClick={() =>
+                                      rejectReport(
+                                        id
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <FiXCircle
+                                      size={14}
+                                    />
+
+                                    Reject
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -425,16 +1031,18 @@ const Reports = () => {
             <div className="divide-y divide-gray-100 md:hidden">
               {filteredReports.map(
                 (report) => {
+                  const id =
+                    report?._id;
+
                   const status =
-                    normalizedStatus(
-                      report
-                    );
+                    getStatus(report);
+
+                  const processing =
+                    processingId === id;
 
                   return (
                     <div
-                      key={
-                        report?._id
-                      }
+                      key={id}
                       className="p-5"
                     >
                       <div className="flex items-start gap-3">
@@ -445,35 +1053,37 @@ const Reports = () => {
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <h3 className="truncate font-semibold text-gray-900">
-                                {report?.user
-                                  ?.name ||
-                                  "N/A"}
-                              </h3>
+                          <h3 className="truncate font-semibold text-gray-900">
+                            {getStudentName(
+                              report
+                            )}
+                          </h3>
 
-                              <p className="mt-1 truncate text-sm text-gray-500">
-                                {report?.user
-                                  ?.email ||
-                                  "No email"}
-                              </p>
-                            </div>
-
-                            <FiMoreVertical
-                              size={18}
-                              className="shrink-0 text-gray-300"
-                            />
-                          </div>
+                          <p className="mt-1 truncate text-sm text-gray-500">
+                            {getStudentEmail(
+                              report
+                            )}
+                          </p>
 
                           <div className="mt-4 rounded-xl bg-gray-50 p-4">
                             <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                              Reported Issue
+                              Program
                             </p>
 
-                            <p className="mt-1 text-sm leading-6 text-gray-700">
-                              {report?.message ||
-                                "-"}
+                            <p className="mt-1 text-sm font-semibold text-gray-800">
+                              {getProgramName(
+                                report
+                              )}
+                            </p>
+
+                            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                              Report ID
+                            </p>
+
+                            <p className="mt-1 break-all font-mono text-xs font-semibold text-gray-700">
+                              {getReportId(
+                                report
+                              )}
                             </p>
 
                             <div className="mt-3">
@@ -487,20 +1097,83 @@ const Reports = () => {
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedReport(
-                            report
-                          )
-                        }
-                        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700"
-                      >
-                        <FiEye
-                          size={15}
-                        />
-                        View Report
-                      </button>
+                      <div className="mt-4 grid grid-cols-1 gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedReport(
+                              report
+                            )
+                          }
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-700"
+                        >
+                          <FiEye
+                            size={15}
+                          />
+                          View Details
+                        </button>
+
+                        {(status ===
+                          "pending" ||
+                          status ===
+                            "revision") && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={
+                                processing
+                              }
+                              onClick={() =>
+                                approveReport(
+                                  id
+                                )
+                              }
+                              className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-3 py-2.5 text-xs font-semibold text-white disabled:opacity-50"
+                            >
+                              <FiCheckCircle
+                                size={15}
+                              />
+                              Approve
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={
+                                processing
+                              }
+                              onClick={() =>
+                                requestRevision(
+                                  id
+                                )
+                              }
+                              className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#D4AF37] bg-[#D4AF37]/5 px-3 py-2.5 text-xs font-semibold text-[#9b7a0c] disabled:opacity-50"
+                            >
+                              <FiRefreshCw
+                                size={15}
+                              />
+                              Request Revision
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={
+                                processing
+                              }
+                              onClick={() =>
+                                rejectReport(
+                                  id
+                                )
+                              }
+                              className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-3 py-2.5 text-xs font-semibold text-white disabled:opacity-50"
+                            >
+                              <FiXCircle
+                                size={15}
+                              />
+                              Reject
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   );
                 }
@@ -510,19 +1183,55 @@ const Reports = () => {
         )}
       </section>
 
-      {/* Details Modal */}
+      {/* ================================================= */}
+      {/* DETAILS MODAL */}
+      {/* ================================================= */}
+
       {selectedReport && (
         <ReportDetailsModal
           report={selectedReport}
-          onClose={() =>
-            setSelectedReport(null)
+          editing={
+            editingId ===
+            selectedReport._id
           }
+          editData={editData}
+          processingId={processingId}
+          onEdit={() =>
+            startEditing(
+              selectedReport
+            )
+          }
+          onChange={handleEditChange}
+          onSave={() =>
+            saveChanges(
+              selectedReport._id
+            )
+          }
+          onCancel={cancelEditing}
+          onApprove={() =>
+            approveReport(
+              selectedReport._id
+            )
+          }
+          onRevision={() =>
+            requestRevision(
+              selectedReport._id
+            )
+          }
+          onReject={() =>
+            rejectReport(
+              selectedReport._id
+            )
+          }
+          onClose={() => {
+            cancelEditing();
+            setSelectedReport(null);
+          }}
         />
       )}
     </div>
   );
 };
-
 
 // =====================================================
 // STAT CARD
@@ -539,11 +1248,6 @@ const StatCard = ({
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#D4AF37]/10 text-[#D4AF37]">
           {icon}
         </div>
-
-        <FiMoreVertical
-          size={17}
-          className="text-gray-300"
-        />
       </div>
 
       <p className="mt-5 text-sm font-medium text-gray-500">
@@ -556,7 +1260,6 @@ const StatCard = ({
     </div>
   );
 };
-
 
 // =====================================================
 // FILTER BUTTON
@@ -582,7 +1285,6 @@ const FilterButton = ({
   );
 };
 
-
 // =====================================================
 // STATUS BADGE
 // =====================================================
@@ -590,11 +1292,29 @@ const FilterButton = ({
 const StatusBadge = ({
   status,
 }) => {
-  if (status === "resolved") {
+  if (status === "approved") {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700">
         <FiCheckCircle size={13} />
-        Resolved
+        Approved
+      </span>
+    );
+  }
+
+  if (status === "rejected") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600">
+        <FiXCircle size={13} />
+        Rejected
+      </span>
+    );
+  }
+
+  if (status === "revision") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#D4AF37]/10 px-3 py-1.5 text-xs font-semibold text-[#9b7a0c]">
+        <FiRefreshCw size={13} />
+        Revision
       </span>
     );
   }
@@ -607,20 +1327,34 @@ const StatusBadge = ({
   );
 };
 
-
 // =====================================================
-// DETAILS MODAL
+// REPORT DETAILS MODAL
 // =====================================================
 
 const ReportDetailsModal = ({
   report,
+  editing,
+  editData,
+  processingId,
+  onEdit,
+  onChange,
+  onSave,
+  onCancel,
+  onApprove,
+  onRevision,
+  onReject,
   onClose,
 }) => {
-  const status =
-    String(
-      report?.status ||
-        "pending"
-    ).toLowerCase();
+  const id = report?._id;
+  const processing =
+    processingId === id;
+
+  const fileUrl =
+    report?.reportFile
+      ? reportFileUrlHelper(
+          report.reportFile
+        )
+      : "";
 
   return (
     <div
@@ -634,175 +1368,576 @@ const ReportDetailsModal = ({
         }
       }}
     >
-      <div className="w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-5 sm:px-6">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">
+      <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+        {/* Modal Header */}
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-5 py-5 sm:px-6">
+          <div className="min-w-0">
+            <h2 className="truncate text-xl font-bold text-gray-900">
               Report Details
             </h2>
 
             <p className="mt-1 text-sm text-gray-500">
-              Platform issue information.
+              {getProgramNameHelper(
+                report
+              )}
             </p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-500 transition hover:bg-gray-200"
           >
             ×
           </button>
         </div>
 
-        <div className="space-y-5 p-5 sm:p-6">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <DetailItem
-              label="User"
-              value={
-                report?.user?.name ||
-                "N/A"
-              }
-              icon={
-                <FiUser size={16} />
-              }
-            />
+        <div className="space-y-6 p-5 sm:p-6">
+          {/* Student */}
+          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#D4AF37]/10 text-[#D4AF37]">
+                <FiUser size={21} />
+              </div>
 
-            <DetailItem
-              label="Email"
-              value={
-                report?.user?.email ||
-                "N/A"
-              }
-              icon={
-                <FiFileText
-                  size={16}
+              <div>
+                <p className="font-bold text-gray-900">
+                  {getStudentNameHelper(
+                    report
+                  )}
+                </p>
+
+                <p className="text-sm text-gray-500">
+                  {getStudentEmailHelper(
+                    report
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Details */}
+          {editing ? (
+            <div className="rounded-2xl border border-[#D4AF37]/20 bg-[#D4AF37]/5 p-5">
+              <div className="mb-5 flex items-center gap-2">
+                <FiEdit3
+                  className="text-[#D4AF37]"
+                  size={18}
                 />
-              }
-            />
 
-            <DetailItem
-              label="Status"
-              value={
-                status
-                  .charAt(0)
-                  .toUpperCase() +
-                status.slice(1)
-              }
-              icon={
-                status ===
-                "resolved" ? (
-                  <FiCheckCircle
-                    size={16}
+                <h3 className="font-bold text-gray-900">
+                  Edit Report Details
+                </h3>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field
+                  label="Student Name"
+                  name="studentName"
+                  value={
+                    editData.studentName ||
+                    ""
+                  }
+                  onChange={onChange}
+                />
+
+                <Field
+                  label="Course / Program"
+                  name="courseName"
+                  value={
+                    editData.courseName ||
+                    ""
+                  }
+                  onChange={onChange}
+                />
+
+                <Field
+                  label="Marks"
+                  name="marks"
+                  value={
+                    editData.marks || ""
+                  }
+                  onChange={onChange}
+                />
+
+                <Field
+                  label="Grade"
+                  name="grade"
+                  value={
+                    editData.grade || ""
+                  }
+                  onChange={onChange}
+                />
+
+                <Field
+                  label="Attendance"
+                  name="attendance"
+                  value={
+                    editData.attendance ||
+                    ""
+                  }
+                  onChange={onChange}
+                />
+
+                <Field
+                  label="Duration"
+                  name="duration"
+                  value={
+                    editData.duration || ""
+                  }
+                  onChange={onChange}
+                />
+
+                <Field
+                  label="Performance"
+                  name="performance"
+                  value={
+                    editData.performance ||
+                    ""
+                  }
+                  onChange={onChange}
+                />
+
+                <Field
+                  label="Issue Date"
+                  name="issueDate"
+                  type="date"
+                  value={
+                    editData.issueDate ||
+                    ""
+                  }
+                  onChange={onChange}
+                />
+
+                <Field
+                  label="Report ID"
+                  name="reportId"
+                  value={
+                    editData.reportId || ""
+                  }
+                  onChange={onChange}
+                />
+
+                <Field
+                  label="Instructor Name"
+                  name="instructorName"
+                  value={
+                    editData.instructorName ||
+                    ""
+                  }
+                  onChange={onChange}
+                />
+
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-semibold text-gray-800">
+                    Feedback
+                  </label>
+
+                  <textarea
+                    name="feedback"
+                    value={
+                      editData.feedback ||
+                      ""
+                    }
+                    onChange={onChange}
+                    rows={4}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10"
                   />
-                ) : (
-                  <FiClock
-                    size={16}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h3 className="text-lg font-bold text-gray-900">
+                  Report Information
+                </h3>
+
+                <StatusBadge
+                  status={getStatusHelper(
+                    report
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <Info
+                  label="Program"
+                  value={getProgramNameHelper(
+                    report
+                  )}
+                />
+
+                <Info
+                  label="Report ID"
+                  value={
+                    report?.reportId ||
+                    report?.data
+                      ?.reportId ||
+                    "-"
+                  }
+                />
+
+                <Info
+                  label="Issue Date"
+                  value={formatDateHelper(
+                    report?.data
+                      ?.issueDate
+                  )}
+                />
+
+                <Info
+                  label="Marks"
+                  value={
+                    report?.data?.marks
+                  }
+                />
+
+                <Info
+                  label="Grade"
+                  value={
+                    report?.data?.grade
+                  }
+                />
+
+                <Info
+                  label="Attendance"
+                  value={
+                    report?.data
+                      ?.attendance
+                  }
+                />
+
+                <Info
+                  label="Duration"
+                  value={
+                    report?.data
+                      ?.duration
+                  }
+                />
+
+                <Info
+                  label="Performance"
+                  value={
+                    report?.data
+                      ?.performance
+                  }
+                />
+
+                <Info
+                  label="Instructor"
+                  value={
+                    report?.data
+                      ?.instructorName
+                  }
+                />
+
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <Info
+                    label="Feedback"
+                    value={
+                      report?.data
+                        ?.feedback
+                    }
                   />
-                )
-              }
-            />
+                </div>
+              </div>
+            </div>
+          )}
 
-            <DetailItem
-              label="Report Date"
-              value={
-                report?.createdAt
-                  ? formatDate(
-                      report.createdAt
-                    )
-                  : "-"
-              }
-              icon={
-                <FiClock size={16} />
-              }
-            />
-          </div>
-
-          <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Reported Issue
-            </p>
-
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">
-              {report?.message ||
-                "No issue description provided."}
-            </p>
-          </div>
-
-          {report?.type && (
-            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Report Type
+          {/* Existing employee remark */}
+          {report?.employeeRemark && (
+            <div className="rounded-2xl border border-[#D4AF37]/20 bg-[#D4AF37]/5 p-5">
+              <p className="text-xs font-bold uppercase tracking-wide text-[#9b7a0c]">
+                Employee Remark
               </p>
 
-              <p className="mt-1 text-sm font-semibold capitalize text-gray-800">
-                {report.type}
+              <p className="mt-2 text-sm leading-6 text-gray-700">
+                {report.employeeRemark}
               </p>
             </div>
           )}
-        </div>
 
-        <div className="border-t border-gray-100 px-5 py-4 sm:px-6">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-          >
-            Close
-          </button>
+          {/* Preview */}
+          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="font-bold text-gray-900">
+                  Generated Report
+                </h3>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Preview the generated file when available.
+                </p>
+              </div>
+
+              {fileUrl ? (
+                <a
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-gray-700 ring-1 ring-gray-200 transition hover:border-[#D4AF37] hover:text-[#D4AF37]"
+                >
+                  <FiEye size={17} />
+                  Preview Report
+                </a>
+              ) : (
+                <span className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-400">
+                  <FiFileText size={17} />
+                  Preview not generated
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-wrap gap-3 border-t border-gray-100 pt-5">
+            {editing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onSave}
+                  disabled={processing}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#D4AF37] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#c29f32] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FiSave size={17} />
+
+                  {processing
+                    ? "Saving..."
+                    : "Save Changes"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  disabled={processing}
+                  className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-700"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  disabled={processing}
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-700 transition hover:border-[#D4AF37] hover:text-[#D4AF37] disabled:opacity-50"
+                >
+                  <FiEdit3 size={17} />
+                  Edit Details
+                </button>
+
+                {(getStatusHelper(
+                  report
+                ) === "pending" ||
+                  getStatusHelper(
+                    report
+                  ) === "revision") && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={onApprove}
+                      disabled={processing}
+                      className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <FiCheckCircle
+                        size={17}
+                      />
+
+                      {processing
+                        ? "Processing..."
+                        : "Approve & Send"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={onRevision}
+                      disabled={processing}
+                      className="inline-flex items-center gap-2 rounded-xl border border-[#D4AF37] bg-[#D4AF37]/5 px-5 py-3 text-sm font-semibold text-[#9b7a0c] transition hover:bg-[#D4AF37]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <FiRefreshCw
+                        size={17}
+                      />
+
+                      Request Revision
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={onReject}
+                      disabled={processing}
+                      className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <FiXCircle
+                        size={17}
+                      />
+
+                      Reject
+                    </button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-
 // =====================================================
-// DETAIL ITEM
+// FIELD
 // =====================================================
 
-const DetailItem = ({
+const Field = ({
   label,
+  name,
   value,
-  icon,
+  onChange,
+  type = "text",
 }) => {
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-      <div className="flex items-center gap-2 text-[#D4AF37]">
-        {icon}
+    <div>
+      <label className="mb-2 block text-sm font-semibold text-gray-800">
+        {label}
+      </label>
 
-        <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-          {label}
-        </span>
-      </div>
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10"
+      />
+    </div>
+  );
+};
 
-      <p className="mt-2 break-words text-sm font-semibold text-gray-900">
-        {value}
+// =====================================================
+// INFO
+// =====================================================
+
+const Info = ({
+  label,
+  value,
+}) => {
+  return (
+    <div className="rounded-xl bg-gray-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+        {label}
+      </p>
+
+      <p className="mt-1 break-words text-sm font-semibold text-gray-800">
+        {value || "-"}
       </p>
     </div>
   );
 };
 
+// =====================================================
+// EMPTY STATE
+// =====================================================
+
+const EmptyState = ({
+  hasSearch,
+  hasFilter,
+}) => {
+  return (
+    <div className="px-6 py-16 text-center">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#D4AF37]/10 text-[#D4AF37]">
+        <FiFileText size={28} />
+      </div>
+
+      <h3 className="mt-5 text-xl font-bold text-gray-900">
+        No Reports Found
+      </h3>
+
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">
+        {hasSearch || hasFilter
+          ? "No generated reports match your current search or status filter."
+          : "There are currently no generated reports in the verification list."}
+      </p>
+    </div>
+  );
+};
 
 // =====================================================
-// DATE
+// HELPERS FOR MODAL
 // =====================================================
 
-const formatDate = (date) => {
-  try {
-    return new Date(
-      date
-    ).toLocaleDateString(
-      "en-IN",
-      {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }
-    );
-  } catch {
+const getStatusHelper = (report) => {
+  return String(
+    report?.status || "pending"
+  ).toLowerCase();
+};
+
+const getStudentNameHelper = (
+  report
+) => {
+  return (
+    report?.student?.name ||
+    report?.data?.studentName ||
+    "Student"
+  );
+};
+
+const getStudentEmailHelper = (
+  report
+) => {
+  return (
+    report?.student?.email ||
+    "No email"
+  );
+};
+
+const getProgramNameHelper = (
+  report
+) => {
+  return (
+    report?.course?.title ||
+    report?.data?.courseName ||
+    report?.internship?.title ||
+    "Program"
+  );
+};
+
+const formatDateHelper = (date) => {
+  if (!date) return "-";
+
+  const value = new Date(date);
+
+  if (Number.isNaN(value.getTime())) {
     return "-";
   }
+
+  return value.toLocaleDateString(
+    "en-IN",
+    {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }
+  );
+};
+
+const reportFileUrlHelper = (
+  file
+) => {
+  if (!file) return "";
+
+  if (
+    file.startsWith("http://") ||
+    file.startsWith("https://")
+  ) {
+    return file;
+  }
+
+  const base =
+    import.meta.env.VITE_API_URL ||
+    API_ORIGIN;
+
+  return `${base}${file}`;
 };
 
 export default Reports;

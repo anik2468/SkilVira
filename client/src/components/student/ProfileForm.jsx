@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useState } from "react";
 
 import {
@@ -11,7 +12,7 @@ import api from "../../services/api";
 
 
 const API_BASE =
-  "http://localhost:5000";
+  API_ORIGIN;
 
 
 const ProfileForm = ({

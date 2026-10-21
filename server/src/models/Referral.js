@@ -128,9 +128,14 @@ const referralSchema = new mongoose.Schema(
       default: null,
     },
 
+    // =========================================
+    // CERTIFICATE
+    // CURRENT FLOW USES GeneratedCertificate
+    // =========================================
+
     certificate: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Certificate",
+      ref: "GeneratedCertificate",
       default: null,
     },
 
@@ -158,6 +163,11 @@ const referralSchema = new mongoose.Schema(
   }
 );
 
+
+// =========================================
+// INDEXES
+// =========================================
+
 referralSchema.index({
   ambassador: 1,
   code: 1,
@@ -172,6 +182,12 @@ referralSchema.index({
   enrolled: 1,
   ambassador: 1,
 });
+
+referralSchema.index({
+  certificateIssued: 1,
+  ambassador: 1,
+});
+
 
 export default mongoose.model(
   "Referral",

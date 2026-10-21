@@ -329,32 +329,57 @@ const Notifications = () => {
   // Open Notification Link
   // ======================================
 
-  const handleNotificationClick =
-    async (notification) => {
-      await handleMarkRead(
-        notification
-      );
+  const handleNotificationClick = async (notification) => {
+    await handleMarkRead(notification);
 
-      const link =
-        notification?.link ||
-        notification?.url ||
-        notification?.actionUrl;
+    const rawLink =
+      notification?.link ||
+      notification?.url ||
+      notification?.actionUrl;
 
-      if (!link) {
+    if (typeof rawLink !== "string" || !rawLink.trim()) {
+      return;
+    }
+
+    try {
+      const destination = new URL(rawLink, window.location.origin);
+
+      if (destination.origin !== window.location.origin) {
+        window.open(destination.href, "_blank", "noopener,noreferrer");
         return;
       }
+
+      const path =
+        destination.pathname + destination.search + destination.hash;
+
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const roots = {
+        student: "/student",
+        recruiter: "/recruiter",
+        employee: "/employee",
+        ambassador: "/ambassador",
+        control: "/control",
+      };
+
+      const roleRoot = roots[storedUser?.role];
+      const isOwnRolePath =
+        roleRoot && (path === roleRoot || path.startsWith(`${roleRoot}/`));
+      const isPublicVerification =
+        destination.pathname.startsWith("/verify-certificate/");
 
       if (
-        link.startsWith("http://") ||
-        link.startsWith("https://")
+        path === "/" ||
+        /^\/(login|register)(\/|$)/.test(path) ||
+        (!isOwnRolePath && !isPublicVerification)
       ) {
-        window.location.href =
-          link;
         return;
       }
 
-      navigate(link);
-    };
+      navigate(path);
+    } catch (error) {
+      console.warn("Ignored invalid notification link:", error);
+    }
+  };
 
 
   // ======================================

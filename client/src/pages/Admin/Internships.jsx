@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 import {
   FiActivity,
@@ -1105,7 +1106,7 @@ const getAssetUrl = (
     return value;
   }
 
-  return `http://localhost:5000${value}`;
+  return `${API_ORIGIN}${value}`;
 };
 
 export default Internships;

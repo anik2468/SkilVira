@@ -1,17 +1,34 @@
+import auth from "../middleware/auth.js";
 import express from "express";
 
 import {
   getCompanySetting,
   updateCompanySetting,
-  uploadCompanyAssets
+  uploadCompanyAssets,
+  removeCompanyGalleryImage,
+  removeCompanyBrochure
 } from "../controllers/companySettingController.js";
 
 
-import upload from "../middleware/upload.js";
-import uploadDocument from "../middleware/uploadDocument.js";
+import companyAssetsUpload from "../middleware/companyAssetsUpload.js";
 
 
 const router = express.Router();
+
+const requireSettingsEditor = (req, res, next) => {
+  const role = String(req.user?.role || req.user?.userRole || "")
+    .toLowerCase();
+
+  if (!["employee", "control", "admin", "superadmin", "super_admin"].includes(role)) {
+    return res.status(403).json({
+      success: false,
+      message: "Employee or Control/Admin access is required."
+    });
+  }
+
+  return next();
+};
+
 
 
 
@@ -27,10 +44,7 @@ router.get(
 
 // Update Settings
 
-router.put(
-  "/",
-  updateCompanySetting
-);
+router.put("/", auth, requireSettingsEditor, updateCompanySetting);
 
 
 
@@ -38,38 +52,20 @@ router.put(
 // Upload Assets
 
 router.post(
-
   "/upload",
-
-  upload.fields([
-
-    {
-      name:"logo",
-      maxCount:1
-    },
-
-    {
-      name:"qrCode",
-      maxCount:1
-    }
-
+  auth,
+  requireSettingsEditor,
+  companyAssetsUpload.fields([
+    { name: "logo", maxCount: 1 },
+    { name: "qrCode", maxCount: 1 },
+    { name: "brochure", maxCount: 1 },
+    { name: "gallery", maxCount: 12 }
   ]),
-
-
-  uploadDocument.fields([
-
-    {
-      name:"brochure",
-      maxCount:1
-    }
-
-  ]),
-
-
   uploadCompanyAssets
-
 );
 
+router.delete("/gallery/:index", auth, requireSettingsEditor, removeCompanyGalleryImage);
+router.delete("/brochure", auth, requireSettingsEditor, removeCompanyBrochure);
 
 
 export default router;

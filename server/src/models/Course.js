@@ -77,12 +77,32 @@ default:"",
 
 
 
-price:{
+price: {
+  type: Number,
+  default: 0,
+},
 
-type:Number,
+  studentReferralDiscountEnabled: { type: Boolean, default: false },
+  studentReferralDiscountType: { type: String, enum: ["percent", "fixed"], default: "percent" },
+  studentReferralDiscountValue: { type: Number, default: 0, min: 0 },
+  ambassadorCommissionEnabled: { type: Boolean, default: true },
+  ambassadorCommissionType: { type: String, enum: ["percent", "fixed"], default: "percent" },
+  ambassadorCommissionValue: { type: Number, default: 15, min: 0 },
 
-default:0,
 
+registrationDeadline: {
+  type: Date,
+  default: null,
+},
+
+startDate: {
+  type: Date,
+  default: null,
+},
+
+endDate: {
+  type: Date,
+  default: null,
 },
 
 

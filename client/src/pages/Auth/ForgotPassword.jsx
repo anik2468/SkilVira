@@ -1,3 +1,4 @@
+import { API_URL } from "../../services/urlConfig.js";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
@@ -51,7 +52,7 @@ const ForgotPassword = () => {
 
       const { data } =
         await axios.post(
-          "http://localhost:5000/api/auth/forgot-password",
+          API_URL + "/auth/forgot-password",
           {
             email:
               email

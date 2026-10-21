@@ -2,6 +2,7 @@ import User from "../models/User.js";
 import Referral from "../models/Referral.js";
 import AmbassadorProfile from "../models/AmbassadorProfile.js";
 import Internship from "../models/Internship.js";
+import Course from "../models/Course.js";
 
 const FRONTEND_URL =
   process.env.CLIENT_URL ||
@@ -186,114 +187,121 @@ export const trackReferralClick = async (
 // Validate Referral
 // ======================================
 
-export const validateReferral =
-  async (req, res) => {
-    try {
-      const {
-        code,
-        internshipId,
-      } = req.body;
 
-      const normalizedCode =
-        normalizeCode(code);
+export const validateReferral = async (req, res) => {
+  try {
+    const {
+      code: rawCode,
+      referralCode: alternateCode,
+      type,
+      courseId,
+      internshipId,
+    } = req.body || {};
 
-      if (!normalizedCode) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Referral code is required.",
-        });
-      }
+    const normalizedCode = normalizeCode(rawCode || alternateCode);
 
-      const ambassador =
-        await User.findOne({
-          referralCode:
-            normalizedCode,
-
-          role: "ambassador",
-
-          ambassadorApproved:
-            true,
-
-          status: "active",
-
-          isDeleted: {
-            $ne: true,
-          },
-        });
-
-      if (!ambassador) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Invalid referral code.",
-        });
-      }
-
-      const discountPercentage =
-        10;
-
-      let amount = 0;
-      let internship = null;
-
-      if (internshipId) {
-        internship =
-          await Internship.findById(
-            internshipId
-          );
-
-        amount = Number(
-          internship?.price || 0
-        );
-      }
-
-      const discountAmount =
-        Math.round(
-          (amount *
-            discountPercentage) /
-            100
-        );
-
-      const finalAmount =
-        Math.max(
-          amount -
-            discountAmount,
-          0
-        );
-
-      return res.status(200).json({
-        success: true,
-
-        ambassadorId:
-          ambassador._id,
-
-        ambassadorName:
-          ambassador.name,
-
-        referralCode:
-          normalizedCode,
-
-        discountPercentage,
-
-        discount:
-          discountAmount,
-
-        finalAmount,
-      });
-    } catch (error) {
-      console.error(
-        "VALIDATE REFERRAL ERROR:",
-        error
-      );
-
-      return res.status(500).json({
+    if (!normalizedCode) {
+      return res.status(400).json({
         success: false,
-        message:
-          error.message ||
-          "Failed to validate referral.",
+        message: "Referral code is required.",
       });
     }
-  };
+
+    const ambassador = await User.findOne({
+      referralCode: normalizedCode,
+      role: "ambassador",
+      ambassadorApproved: true,
+      status: "active",
+      isDeleted: { $ne: true },
+    });
+
+    if (!ambassador) {
+      return res.status(404).json({
+        success: false,
+        message: "Invalid or inactive ambassador referral code.",
+      });
+    }
+
+    const productType = String(
+      type || (courseId ? "course" : internshipId ? "internship" : "")
+    ).toLowerCase();
+
+    let product = null;
+
+    if (productType === "course" && courseId) {
+      product = await Course.findOne({
+        _id: courseId,
+        isDeleted: { $ne: true },
+      });
+    } else if (productType === "internship" && internshipId) {
+      product = await Internship.findOne({
+        _id: internshipId,
+        isDeleted: { $ne: true },
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Select a valid course or internship.",
+      });
+    }
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Selected course or internship was not found.",
+      });
+    }
+
+    const roundMoney = (value) =>
+      Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+
+    const originalAmount = roundMoney(Math.max(0, Number(product.price) || 0));
+    const discountType =
+      product.studentReferralDiscountType === "fixed" ? "fixed" : "percent";
+    const discountValue = Math.max(
+      0,
+      Number(product.studentReferralDiscountValue) || 0
+    );
+
+    let requestedDiscount = 0;
+
+    if (product.studentReferralDiscountEnabled === true) {
+      requestedDiscount = discountType === "fixed"
+        ? discountValue
+        : originalAmount * Math.min(discountValue, 100) / 100;
+    }
+
+    // Manual payment requires a positive payment amount.
+    const discountAmount = roundMoney(
+      Math.min(Math.max(originalAmount - 1, 0), requestedDiscount)
+    );
+    const finalAmount = roundMoney(originalAmount - discountAmount);
+
+    return res.status(200).json({
+      success: true,
+      ambassadorId: ambassador._id,
+      ambassadorName: ambassador.name,
+      referralCode: normalizedCode,
+      originalAmount,
+      discountType,
+      discountValue,
+      discount: discountAmount,
+      discountAmount,
+      discountPercentage: discountType === "percent" ? discountValue : 0,
+      finalAmount,
+      message: discountAmount > 0
+        ? "Referral applied successfully."
+        : "Referral code is valid, but no student discount is enabled for this item.",
+    });
+  } catch (error) {
+    console.error("VALIDATE REFERRAL ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to validate referral code.",
+    });
+  }
+};
+
 
 // ======================================
 // Get Referral Summary

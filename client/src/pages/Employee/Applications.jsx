@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 import {
   FiFileText,
@@ -977,7 +978,7 @@ const Avatar = ({
   const avatarUrl = avatar
     ? avatar.startsWith("http")
       ? avatar
-      : `http://localhost:5000${avatar}`
+      : `${API_ORIGIN}${avatar}`
     : `https://ui-avatars.com/api/?name=${encodeURIComponent(
         name
       )}&background=D4AF37&color=fff&size=120`;

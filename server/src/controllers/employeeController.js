@@ -2,6 +2,25 @@ import EmployeeProfile from "../models/EmployeeProfile.js";
 import User from "../models/User.js";
 import Internship from "../models/Internship.js";
 
+const EMPLOYEE_PROFILE_EDITABLE_FIELDS = [
+  "designation", "department", "phone", "officeEmail", "qualification",
+  "experience", "address", "city", "state", "country", "linkedin",
+];
+
+const sanitizeEmployeeProfileUpdates = (body = {}) => {
+  const updates = {};
+  for (const field of EMPLOYEE_PROFILE_EDITABLE_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(body, field)) continue;
+    if (field === "experience") {
+      const value = Number(body[field]);
+      if (Number.isFinite(value) && value >= 0 && value <= 80) updates[field] = value;
+    } else {
+      updates[field] = String(body[field] ?? "").trim().slice(0, 1000);
+    }
+  }
+  return updates;
+};
+
 
 // ======================================
 // Get Employee Profile
@@ -85,7 +104,7 @@ if(profile){
 
  Object.assign(
   profile,
-  req.body
+  sanitizeEmployeeProfileUpdates(req.body)
  );
 
 }else{
@@ -95,7 +114,7 @@ if(profile){
 
   user:req.params.userId,
 
-  ...req.body,
+  ...sanitizeEmployeeProfileUpdates(req.body),
 
  });
 
@@ -194,24 +213,30 @@ export const employeeDashboard = async (
 
   try {
 
-    const profile =
+    let profile =
       await EmployeeProfile.findOne({
         user:req.params.userId,
       });
 
 
 
-    if(!profile){
-
-      return res.status(404).json({
-
-        success:false,
-
-        message:
-          "Profile not found.",
-
+    if (!profile) {
+      const employeeUser = await User.findOne({
+        _id: req.params.userId,
+        role: "employee",
+        isDeleted: { $ne: true },
       });
 
+      if (!employeeUser) {
+        return res.status(404).json({
+          success: false,
+          message: "Employee account not found.",
+        });
+      }
+
+      profile = await EmployeeProfile.create({
+        user: employeeUser._id,
+      });
     }
 
 

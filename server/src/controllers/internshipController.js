@@ -3,96 +3,45 @@ import Internship from "../models/Internship.js";
 // ======================================
 // Create Internship
 // ======================================
+
 export const createInternship = async (req, res) => {
-
   try {
+    const data = { ...req.body };
 
+    // Privileged fields must come from the server, not the request body.
+    [
+      "recruiter", "sourceType", "approvalStatus", "status",
+      "featured", "views", "applicants", "bookmarks",
+      "isDeleted", "_id", "createdAt", "updatedAt", "__v"
+    ].forEach((field) => delete data[field]);
 
-    const {
-      sourceType = "recruiter",
-      ...data
-    } = req.body;
+    const internship = await Internship.create({
+      ...data,
+      recruiter: req.user.id,
+      sourceType: "recruiter",
+      approvalStatus: "Pending",
+      status: "Open",
+      featured: false,
+      views: 0,
+      applicants: 0,
+      bookmarks: 0,
+      isDeleted: false,
+    });
 
-
-
-    const isSkilVira =
-      sourceType === "skilvira";
-
-
-
-    const internship =
-      await Internship.create({
-
-        ...data,
-
-
-        sourceType,
-
-
-        approvalStatus:
-          isSkilVira
-            ? "Approved"
-            : "Pending",
-
-
-        status:"Open",
-
-        featured:false,
-
-        views:0,
-
-        applicants:0,
-
-        isDeleted:false,
-
-      });
-
-
-
-    res.status(201).json({
-
-      success:true,
-
-      message:
-
-        isSkilVira
-
-        ?
-
-        "SkilVira internship published successfully."
-
-        :
-
-        "Internship submitted successfully. It is under review and will be published after approval.",
-
-
+    return res.status(201).json({
+      success: true,
+      message: "Internship submitted successfully. It is under review and will be published after approval.",
       internship,
-
     });
-
-
-
-  } catch(error){
-
-
-    console.error(error);
-
-
-
-    res.status(500).json({
-
-      success:false,
-
-      message:error.message,
-
+  } catch (error) {
+    console.error("Create internship error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
     });
-
-
   }
-
 };
-// ======================================
-// Get Approved Internships
+
 // ======================================
 export const getInternships = async (req, res) => {
   try {
@@ -150,26 +99,30 @@ export const getInternships = async (req, res) => {
 };
 
 // ======================================
+
 // Recruiter Internships
 // ======================================
-export const getRecruiterInternships = async (
-  req,
-  res
-) => {
-  try {
-    const internships = await Internship.find({
-      recruiter: req.params.recruiterId,
-      isDeleted: false,
-    }).sort({
-      createdAt: -1,
-    });
 
-    res.json({
-      success: true,
-      internships,
-    });
+export const getRecruiterInternships = async (req, res) => {
+  try {
+    const recruiterId = String(req.user.id || req.user._id || "");
+
+    if (!recruiterId || req.params.recruiterId !== recruiterId) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only view your own internships.",
+      });
+    }
+
+    const internships = await Internship.find({
+      recruiter: recruiterId,
+      sourceType: "recruiter",
+      isDeleted: false,
+    }).sort({ createdAt: -1 });
+
+    return res.json({ success: true, internships });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -298,20 +251,15 @@ export const getInternshipById = async (
 // ======================================
 // Update Internship
 // ======================================
-export const updateInternship = async (
-  req,
-  res
-) => {
+
+export const updateInternship = async (req, res) => {
   try {
-    const internship =
-      await Internship.findByIdAndUpdate(
-        req.params.id,
-        req.body,
-        {
-          new: true,
-          runValidators: true,
-        }
-      );
+    const internship = await Internship.findOne({
+      _id: req.params.id,
+      recruiter: req.user.id || req.user._id,
+      sourceType: "recruiter",
+      isDeleted: false,
+    });
 
     if (!internship) {
       return res.status(404).json({
@@ -320,14 +268,28 @@ export const updateInternship = async (
       });
     }
 
-    res.json({
+    const allowedFields = [
+      "title", "category", "internshipType", "workMode",
+      "location", "duration", "price", "openings", "lastDate",
+      "skills", "description", "responsibilities", "requirements",
+      "perks", "benefits", "internshipImage", "companyWebsite",
+    ];
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        internship[field] = req.body[field];
+      }
+    }
+
+    await internship.save();
+
+    return res.json({
       success: true,
-      message:
-        "Internship updated successfully.",
+      message: "Internship updated successfully.",
       internship,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -448,30 +410,39 @@ export const featureInternship = async (
 // ======================================
 // Delete Internship
 // ======================================
-export const deleteInternship = async (
-  req,
-  res
-) => {
+
+export const deleteInternship = async (req, res) => {
   try {
-    await Internship.findByIdAndUpdate(
-      req.params.id,
+    const internship = await Internship.findOneAndUpdate(
       {
-        isDeleted: true,
-      }
+        _id: req.params.id,
+        recruiter: req.user.id || req.user._id,
+        sourceType: "recruiter",
+        isDeleted: false,
+      },
+      { $set: { isDeleted: true } },
+      { new: true }
     );
 
-    res.json({
+    if (!internship) {
+      return res.status(404).json({
+        success: false,
+        message: "Internship not found.",
+      });
+    }
+
+    return res.json({
       success: true,
-      message:
-        "Internship deleted successfully.",
+      message: "Internship deleted successfully.",
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
+
 // ======================================
 // Create SkilVira Internship (Employee)
 // ======================================
@@ -526,8 +497,7 @@ export const createSkilViraInternship = async (
     const internship = await Internship.create({
 
       // Creator
-      recruiter:
-        req.body.recruiter,
+      recruiter: req.user.id,
 
 
       // Source

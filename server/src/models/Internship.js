@@ -157,6 +157,14 @@ const internshipSchema = new mongoose.Schema(
 
   },
 
+  studentReferralDiscountEnabled: { type: Boolean, default: false },
+  studentReferralDiscountType: { type: String, enum: ["percent", "fixed"], default: "percent" },
+  studentReferralDiscountValue: { type: Number, default: 0, min: 0 },
+  ambassadorCommissionEnabled: { type: Boolean, default: true },
+  ambassadorCommissionType: { type: String, enum: ["percent", "fixed"], default: "percent" },
+  ambassadorCommissionValue: { type: Number, default: 15, min: 0 },
+
+
 
   openings: {
 

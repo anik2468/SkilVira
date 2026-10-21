@@ -22,6 +22,11 @@ type:String,
 default:"",
 },
 
+gallery: {
+  type: [String],
+  default: [],
+},
+
 
 qrCode:{
 type:String,
@@ -58,6 +63,15 @@ type:String,
 default:"",
 },
 
+
+supportEmail: { type: String, default: "", trim: true },
+instagram: { type: String, default: "", trim: true },
+linkedin: { type: String, default: "", trim: true },
+youtube: { type: String, default: "", trim: true },
+facebook: { type: String, default: "", trim: true },
+twitter: { type: String, default: "", trim: true },
+mapUrl: { type: String, default: "", trim: true },
+supportHours: { type: String, default: "", trim: true },
 
 updatedBy:{
 type:mongoose.Schema.Types.ObjectId,

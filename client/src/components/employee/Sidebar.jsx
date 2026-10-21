@@ -10,70 +10,155 @@ import {
   FiCheckCircle,
   FiLogOut,
   FiX,
+  FiCreditCard,
+  FiAward,
+  FiSettings,
+  FiFilePlus,
+  FiClipboard,
+  FiLayers,
 } from "react-icons/fi";
 
-const menu = [
+const menuSections = [
   {
-    name: "Dashboard",
-    path: "/employee/dashboard",
-    icon: <FiGrid />,
+    title: "Workspace",
+    items: [
+      {
+        name: "Dashboard",
+        path: "/employee/dashboard",
+        icon: <FiGrid />,
+      },
+      {
+        name: "Recruiter Approval",
+        path: "/employee/recruiters",
+        icon: <FiCheckCircle />,
+      },
+      {
+        name: "Ambassador Approval",
+        path: "/employee/ambassadors",
+        icon: <FiUsers />,
+      },
+      {
+        name: "Internship Approval",
+        path: "/employee/internships",
+        icon: <FiBriefcase />,
+      },
+    ],
   },
+
   {
-    name: "Recruiter Approval",
-    path: "/employee/recruiters",
-    icon: <FiCheckCircle />,
+    title: "Verification",
+    items: [
+      {
+        name: "Payment Verification",
+        path: "/employee/payment-verification",
+        icon: <FiCreditCard />,
+      },
+      {
+        name: "Offer Letter Verification",
+        path: "/employee/offer-letters/verification",
+        icon: <FiFileText />,
+      },
+      {
+        name: "Certificate Verification",
+        path: "/employee/certificates/verification",
+        icon: <FiAward />,
+      },
+      {
+        name: "Report Verification",
+        path: "/employee/reports/verification",
+        icon: <FiClipboard />,
+      },
+    ],
   },
+
   {
-    name: "Ambassador Approval",
-    path: "/employee/ambassadors",
-    icon: <FiUsers />,
+    title: "Templates",
+    items: [
+      {
+        name: "Certificate Templates",
+        path: "/employee/certificate-templates",
+        icon: <FiLayers />,
+      },
+      {
+        name: "Offer Letter Templates",
+        path: "/employee/offer-letter-templates",
+        icon: <FiFilePlus />,
+      },
+      {
+        name: "Report Templates",
+        path: "/employee/report-templates",
+        icon: <FiFileText />,
+      },
+    ],
   },
+
   {
-    name: "Internship Approval",
-    path: "/employee/internships",
-    icon: <FiBriefcase />,
+    title: "Management",
+    items: [
+      {
+        name: "Course Management",
+        path: "/employee/courses",
+        icon: <FiBookOpen />,
+      },
+      {
+        name: "Users",
+        path: "/employee/users",
+        icon: <FiUsers />,
+      },
+      {
+        name: "Companies",
+        path: "/employee/companies",
+        icon: <FiBriefcase />,
+      },
+      {
+        name: "Universities",
+        path: "/employee/universities",
+        icon: <FiBookOpen />,
+      },
+      {
+        name: "Communities",
+        path: "/employee/communities",
+        icon: <FiUsers />,
+      },
+    ],
   },
+
   {
-    name: "Users",
-    path: "/employee/users",
-    icon: <FiUsers />,
-  },
-  {
-    name: "Companies",
-    path: "/employee/companies",
-    icon: <FiBriefcase />,
-  },
-  {
-    name: "Universities",
-    path: "/employee/universities",
-    icon: <FiBookOpen />,
-  },
-  {
-    name: "Reports",
-    path: "/employee/reports",
-    icon: <FiFileText />,
-  },
-  {
-    name: "Communities",
-    path: "/employee/communities",
-    icon: <FiUsers />,
-  },
-  {
-    name: "Profile",
-    path: "/employee/profile",
-    icon: <FiUser />,
+    title: "Settings",
+    items: [
+      {
+        name: "Settings Home",
+        path: "/employee/settings",
+        icon: <FiSettings />,
+      },
+      {
+        name: "Payment Settings",
+        path: "/employee/payment-settings",
+        icon: <FiSettings />,
+      },
+      {
+        name: "Referral Discount & Commission",
+        path: "/employee/referral-settings",
+        icon: <FiBookOpen />,
+      },
+      {
+        name: "Contact & Support Settings",
+        path: "/employee/contact-settings",
+        icon: <FiSettings />,
+      },
+      {
+        name: "Profile",
+        path: "/employee/profile",
+        icon: <FiUser />,
+      },
+    ],
   },
 ];
 
-const Sidebar = ({
-  mobileOpen = false,
-  onClose,
-}) => {
+const Sidebar = ({ mobileOpen = false, onClose }) => {
   const navigate = useNavigate();
 
-  const user = JSON.parse(
-    localStorage.getItem("user") || "{}"
-  );
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
 
   const displayName =
     user?.name ||
@@ -94,6 +179,12 @@ const Sidebar = ({
     localStorage.removeItem("user");
 
     navigate("/", { replace: true });
+  };
+
+  const handleNavClick = () => {
+    if (onClose) {
+      onClose();
+    }
   };
 
   return (
@@ -125,13 +216,8 @@ const Sidebar = ({
         <div className="flex h-[82px] items-center justify-between border-b border-slate-100 px-6">
           <div>
             <div className="text-2xl font-black tracking-tight">
-              <span className="text-[#D4AF37]">
-                Skil
-              </span>
-
-              <span className="text-slate-900">
-                vira
-              </span>
+              <span className="text-[#D4AF37]">Skil</span>
+              <span className="text-slate-900">vira</span>
             </div>
 
             <div className="mt-1 flex items-center gap-2">
@@ -155,52 +241,58 @@ const Sidebar = ({
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-4 py-5">
-          <p className="mb-3 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-            Workspace
-          </p>
+          <div className="space-y-7">
+            {menuSections.map((section) => (
+              <div key={section.title}>
+                <p className="mb-3 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                  {section.title}
+                </p>
 
-          <div className="space-y-1.5">
-            {menu.map((item) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                onClick={onClose}
-                className={({ isActive }) =>
-                  [
-                    "group flex items-center gap-3 rounded-2xl px-4 py-3",
-                    "text-sm font-bold transition-all duration-200",
-                    isActive
-                      ? "bg-[#FFF8E7] text-[#9A7B14] shadow-sm"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
-                  ].join(" ")
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <span
-                      className={`
-                        flex h-9 w-9 shrink-0 items-center justify-center
-                        rounded-xl transition-all duration-200
-                        ${
+                <div className="space-y-1.5">
+                  {section.items.map((item) => (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      onClick={handleNavClick}
+                      className={({ isActive }) =>
+                        [
+                          "group flex items-center gap-3 rounded-2xl px-4 py-3",
+                          "text-sm font-bold transition-all duration-200",
                           isActive
-                            ? "bg-[#D4AF37] text-black shadow-sm"
-                            : "bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700"
-                        }
-                      `}
+                            ? "bg-[#FFF8E7] text-[#9A7B14] shadow-sm"
+                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                        ].join(" ")
+                      }
                     >
-                      {item.icon}
-                    </span>
+                      {({ isActive }) => (
+                        <>
+                          <span
+                            className={`
+                              flex h-9 w-9 shrink-0 items-center justify-center
+                              rounded-xl transition-all duration-200
+                              ${
+                                isActive
+                                  ? "bg-[#D4AF37] text-black shadow-sm"
+                                  : "bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700"
+                              }
+                            `}
+                          >
+                            {item.icon}
+                          </span>
 
-                    <span className="truncate">
-                      {item.name}
-                    </span>
+                          <span className="truncate">
+                            {item.name}
+                          </span>
 
-                    {isActive && (
-                      <span className="ml-auto h-2 w-2 rounded-full bg-[#D4AF37]" />
-                    )}
-                  </>
-                )}
-              </NavLink>
+                          {isActive && (
+                            <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-[#D4AF37]" />
+                          )}
+                        </>
+                      )}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </nav>

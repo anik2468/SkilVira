@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
@@ -341,7 +342,7 @@ const CompanyRow = ({
   const logo = company?.logo
     ? company.logo.startsWith("http")
       ? company.logo
-      : `http://localhost:5000${company.logo}`
+      : `${API_ORIGIN}${company.logo}`
     : null;
 
   const isVerified =
@@ -423,7 +424,7 @@ const CompanyCard = ({
   const logo = company?.logo
     ? company.logo.startsWith("http")
       ? company.logo
-      : `http://localhost:5000${company.logo}`
+      : `${API_ORIGIN}${company.logo}`
     : null;
 
   const isVerified =
@@ -571,7 +572,7 @@ const CompanyModal = ({
   const logo = company?.logo
     ? company.logo.startsWith("http")
       ? company.logo
-      : `http://localhost:5000${company.logo}`
+      : `${API_ORIGIN}${company.logo}`
     : null;
 
   const isVerified =

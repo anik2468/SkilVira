@@ -11,8 +11,6 @@ const employeeProfileSchema = new mongoose.Schema(
 
     employeeId: {
       type: String,
-      unique: true,
-      sparse: true,
     },
 
     designation: {
@@ -91,6 +89,17 @@ const employeeProfileSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+  }
+);
+
+employeeProfileSchema.index(
+  { employeeId: 1 },
+  {
+    name: "employeeId_unique_string",
+    unique: true,
+    partialFilterExpression: {
+      employeeId: { $type: "string", $gt: "" }
+    }
   }
 );
 

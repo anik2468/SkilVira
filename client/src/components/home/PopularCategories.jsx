@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { getCourses } from "../../services/courseService";
 import {
   FiArrowUpRight,
   FiBarChart2,
@@ -8,68 +11,67 @@ import {
   FiPenTool,
   FiShield,
   FiSmartphone,
+  FiLayers,
 } from "react-icons/fi";
 
-const categories = [
-  {
-    icon: <FiCode />,
-    title: "Web Development",
-    description:
-      "Build modern websites and full-stack web applications.",
-    tag: "Web",
-  },
-  {
-    icon: <FiCpu />,
-    title: "AI & Machine Learning",
-    description:
-      "Explore intelligent systems, models and real-world AI.",
-    tag: "AI",
-  },
-  {
-    icon: <FiSmartphone />,
-    title: "App Development",
-    description:
-      "Create mobile experiences for the next generation.",
-    tag: "Mobile",
-  },
-  {
-    icon: <FiPenTool />,
-    title: "UI / UX Design",
-    description:
-      "Design intuitive digital products people love to use.",
-    tag: "Design",
-  },
-  {
-    icon: <FiCloud />,
-    title: "Cloud Computing",
-    description:
-      "Learn scalable cloud infrastructure and modern deployment.",
-    tag: "Cloud",
-  },
-  {
-    icon: <FiShield />,
-    title: "Cyber Security",
-    description:
-      "Understand security, privacy and digital protection.",
-    tag: "Security",
-  },
-  {
-    icon: <FiDatabase />,
-    title: "Data Science",
-    description:
-      "Turn data into insights, decisions and meaningful solutions.",
-    tag: "Data",
-  },
-  {
-    icon: <FiBarChart2 />,
-    title: "Digital Marketing",
-    description:
-      "Master growth, content, branding and digital strategy.",
-    tag: "Marketing",
-  },
-];
+const categoryIcon = (title) => {
+  const value = title.toLowerCase();
+  if (value.includes("web") || value.includes("software") || value.includes("program")) return <FiCode />;
+  if (value.includes("ai") || value.includes("machine learning")) return <FiCpu />;
+  if (value.includes("app") || value.includes("mobile")) return <FiSmartphone />;
+  if (value.includes("design")) return <FiPenTool />;
+  if (value.includes("cloud")) return <FiCloud />;
+  if (value.includes("security")) return <FiShield />;
+  if (value.includes("data")) return <FiDatabase />;
+  if (value.includes("marketing")) return <FiBarChart2 />;
+  return <FiLayers />;
+};
 
 const PopularCategories = () => {
+
+  const navigate = useNavigate();
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+
+    getCourses()
+      .then((response) => {
+        const list = response?.courses || response?.data?.courses || response?.data || [];
+        if (!Array.isArray(list)) {
+          if (active) setCategories([]);
+          return;
+        }
+
+        const unique = new Map();
+
+        list.forEach((course) => {
+          const raw = course?.category?.name || course?.category?.title ||
+            course?.categoryName || course?.category;
+          const title = typeof raw === "string" ? raw.trim() : "";
+
+          if (title && !unique.has(title.toLowerCase())) {
+            unique.set(title.toLowerCase(), {
+              title,
+              icon: categoryIcon(title),
+              description: `Explore courses and build practical skills in ${title}.`,
+              tag: title.length > 12 ? `${title.slice(0, 12)}…` : title,
+            });
+          }
+        });
+
+        if (active) setCategories([...unique.values()]);
+      })
+      .catch((error) => {
+        console.error("Unable to load course categories:", error);
+        if (active) setCategories([]);
+      });
+
+    return () => { active = false; };
+  }, []);
+  const openCategory = (title) =>
+    navigate(`/courses?search=${encodeURIComponent(title)}`);
+
   return (
     <section className="relative overflow-hidden bg-white py-20 sm:py-24">
       {/* Ambient background */}
@@ -107,7 +109,17 @@ const PopularCategories = () => {
             (item, index) => (
               <div
                 key={index}
-                className="group relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_10px_35px_rgba(15,23,42,0.045)] transition-all duration-300 hover:-translate-y-2 hover:border-[#D4AF37]/35 hover:shadow-[0_24px_55px_rgba(15,23,42,0.10)] sm:p-7"
+                role="button"
+                tabIndex={0}
+                onClick={() => openCategory(item.title)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openCategory(item.title);
+                  }
+                }}
+                aria-label={`Explore ${item.title} courses`}
+                className="group relative cursor-pointer overflow-hidden rounded-[28px] border border-slate-200/80 bg-white p-6 text-left shadow-[0_10px_35px_rgba(15,23,42,0.045)] transition-all duration-300 hover:-translate-y-2 hover:border-[#D4AF37]/35 hover:shadow-[0_24px_55px_rgba(15,23,42,0.10)] focus:outline-none focus:ring-2 focus:ring-[#D4AF37] sm:p-7"
               >
                 {/* Card glow */}
                 <div className="pointer-events-none absolute -right-14 -top-14 h-32 w-32 rounded-full bg-[#D4AF37]/8 blur-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100" />

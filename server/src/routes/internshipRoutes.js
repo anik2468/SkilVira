@@ -1,167 +1,101 @@
 import express from "express";
+import auth from "../middleware/auth.js";
 
 import {
-
   createInternship,
-
   createSkilViraInternship,
-
   getInternships,
-
   getInternshipById,
-
   getRecruiterInternships,
-
   getPendingInternships,
-
   latestInternships,
-
   featuredInternships,
-
   updateInternship,
-
   deleteInternship,
-
   approveInternship,
-
   rejectInternship,
-
   featureInternship,
-
 } from "../controllers/internshipController.js";
-
-
 
 const router = express.Router();
 
+const getRole = (req) =>
+  String(req.user?.role || "").toLowerCase();
 
+const requireRecruiter = (req, res, next) => {
+  if (getRole(req) !== "recruiter") {
+    return res.status(403).json({
+      success: false,
+      message: "Recruiter access is required.",
+    });
+  }
 
+  return next();
+};
 
-// ======================================
-// Public Routes
-// ======================================
+const requireStaff = (req, res, next) => {
+  if (!["employee", "control"].includes(getRole(req))) {
+    return res.status(403).json({
+      success: false,
+      message: "Employee or Control Admin access is required.",
+    });
+  }
 
+  return next();
+};
 
-// All Approved Internships
-router.get(
-  "/",
-  getInternships
-);
+// Public internship routes
+router.get("/", getInternships);
+router.get("/latest", latestInternships);
+router.get("/featured", featuredInternships);
+router.get("/:id", getInternshipById);
 
-
-
-// Latest Internships
-router.get(
-  "/latest",
-  latestInternships
-);
-
-
-
-// Featured Internships
-router.get(
-  "/featured",
-  featuredInternships
-);
-
-
-
-// Internship Details
-router.get(
-  "/:id",
-  getInternshipById
-);
-
-
-
-
-
-
-// ======================================
-// Recruiter Routes
-// ======================================
-
-
-// Recruiter Internships
+// Recruiter routes
 router.get(
   "/recruiter/:recruiterId",
+  auth,
+  requireRecruiter,
   getRecruiterInternships
 );
 
+router.post("/", auth, requireRecruiter, createInternship);
+router.put("/:id", auth, requireRecruiter, updateInternship);
+router.delete("/:id", auth, requireRecruiter, deleteInternship);
 
-
-// Create Recruiter Internship
-router.post(
-  "/",
-  createInternship
-);
-
-
-
-// Update Internship
-router.put(
-  "/:id",
-  updateInternship
-);
-
-
-
-// Delete Internship
-router.delete(
-  "/:id",
-  deleteInternship
-);
-
-
-
-
-
-
-
-// ======================================
-// Employee / SkilVira Routes
-// ======================================
-
-
-// Create SkilVira Internship
+// Employee / Control routes
 router.post(
   "/skilvira/create",
+  auth,
+  requireStaff,
   createSkilViraInternship
 );
 
-
-
-// Pending Internships
 router.get(
   "/pending/all",
+  auth,
+  requireStaff,
   getPendingInternships
 );
 
-
-
-// Approve Internship
 router.put(
   "/approve/:id",
+  auth,
+  requireStaff,
   approveInternship
 );
 
-
-
-// Reject Internship
 router.put(
   "/reject/:id",
+  auth,
+  requireStaff,
   rejectInternship
 );
 
-
-
-// Feature Internship
 router.put(
   "/feature/:id",
+  auth,
+  requireStaff,
   featureInternship
 );
-
-
-
 
 export default router;

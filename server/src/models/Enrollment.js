@@ -185,6 +185,7 @@ const enrollmentSchema =
     }
   );
 
+
 // =========================================
 // VALIDATION
 // =========================================
@@ -207,8 +208,12 @@ enrollmentSchema.pre(
   }
 );
 
+
 // =========================================
 // REFERRAL ENROLLMENT TRACKING
+//
+// Uses the same MongoDB session when the
+// enrollment is being saved inside a transaction.
 // =========================================
 
 enrollmentSchema.post(
@@ -227,19 +232,50 @@ enrollmentSchema.post(
         return;
       }
 
-      const student =
-        await User.findById(
+      // -----------------------------------------
+      // Reuse current transaction session
+      // -----------------------------------------
+
+      const session =
+        typeof enrollment.$session ===
+        "function"
+          ? enrollment.$session()
+          : null;
+
+
+      // -----------------------------------------
+      // Student
+      // -----------------------------------------
+
+      let studentQuery =
+        User.findById(
           enrollment.student
         ).select(
           "referredBy"
         );
 
+      if (session) {
+        studentQuery =
+          studentQuery.session(
+            session
+          );
+      }
+
+      const student =
+        await studentQuery;
+
+
       if (!student?.referredBy) {
         return;
       }
 
-      const referral =
-        await Referral.findOne({
+
+      // -----------------------------------------
+      // Referral
+      // -----------------------------------------
+
+      let referralQuery =
+        Referral.findOne({
           ambassador:
             student.referredBy,
 
@@ -253,9 +289,27 @@ enrollmentSchema.post(
           createdAt: -1,
         });
 
+
+      if (session) {
+        referralQuery =
+          referralQuery.session(
+            session
+          );
+      }
+
+
+      const referral =
+        await referralQuery;
+
+
       if (!referral) {
         return;
       }
+
+
+      // -----------------------------------------
+      // Enrollment tracking
+      // -----------------------------------------
 
       referral.enrolled =
         true;
@@ -267,10 +321,12 @@ enrollmentSchema.post(
       referral.enrollment =
         enrollment._id;
 
+
       referral.product =
         enrollment.course ||
         enrollment.internship ||
         null;
+
 
       referral.productType =
         enrollment.course
@@ -279,18 +335,37 @@ enrollmentSchema.post(
           ? "internship"
           : null;
 
+
+      // -----------------------------------------
+      // Payment tracking
+      // -----------------------------------------
+
       try {
         const Payment =
           mongoose.model(
             "Payment"
           );
 
-        const payment =
-          await Payment.findById(
+
+        let paymentQuery =
+          Payment.findById(
             enrollment.payment
           ).select(
             "discountAmount ambassador referralCode"
           );
+
+
+        if (session) {
+          paymentQuery =
+            paymentQuery.session(
+              session
+            );
+        }
+
+
+        const payment =
+          await paymentQuery;
+
 
         if (payment) {
           referral.payment =
@@ -301,7 +376,31 @@ enrollmentSchema.post(
               payment.discountAmount ||
                 0
             );
+
+
+          // Keep referral ambassador aligned
+          // with the payment when available.
+          if (
+            payment.ambassador &&
+            !referral.ambassador
+          ) {
+            referral.ambassador =
+              payment.ambassador;
+          }
+
+
+          // Keep code aligned when available.
+          if (
+            payment.referralCode &&
+            !referral.code
+          ) {
+            referral.code =
+              payment.referralCode
+                .trim()
+                .toUpperCase();
+          }
         }
+
       } catch (paymentError) {
         console.error(
           "REFERRAL PAYMENT LINK ERROR:",
@@ -309,18 +408,39 @@ enrollmentSchema.post(
         );
       }
 
+
+      // -----------------------------------------
+      // Referral is now used
+      // -----------------------------------------
+
       referral.status =
         "Used";
 
-      await referral.save();
+
+      if (session) {
+        await referral.save({
+          session,
+        });
+      } else {
+        await referral.save();
+      }
+
     } catch (error) {
       console.error(
         "REFERRAL ENROLLMENT TRACKING ERROR:",
         error
       );
+
+      // Do not break enrollment creation
+      // because of referral analytics.
     }
   }
 );
+
+
+// =========================================
+// MODEL
+// =========================================
 
 export default mongoose.model(
   "Enrollment",

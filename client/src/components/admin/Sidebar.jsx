@@ -10,6 +10,9 @@ import {
   FiSettings,
   FiLogOut,
   FiUserCheck,
+  FiActivity,
+  FiCreditCard,
+  FiCheckCircle,
   FiX,
 } from "react-icons/fi";
 
@@ -72,6 +75,106 @@ const Sidebar = ({ mobileOpen = false, onClose }) => {
       name: "Create User",
       icon: <FiUsers />,
       path: "/control/create-user",
+    },
+    {
+      name: "Employees",
+      icon: <FiUsers />,
+      path: "/control/employees",
+    },
+    {
+      name: "Employee Activity",
+      icon: <FiActivity />,
+      path: "/control/employee-activity",
+    },
+    {
+      name: "User Management",
+      icon: <FiUsers />,
+      path: "/control/users",
+    },
+    {
+      name: "Companies",
+      icon: <FiBriefcase />,
+      path: "/control/companies",
+    },
+    {
+      name: "Universities",
+      icon: <FiBookOpen />,
+      path: "/control/universities",
+    },
+    {
+      name: "Communities",
+      icon: <FiUsers />,
+      path: "/control/communities",
+    },
+    {
+      name: "Ambassador Approval",
+      icon: <FiUsers />,
+      path: "/control/ambassadors",
+    },
+    {
+      name: "Recruiter Approval",
+      icon: <FiUserCheck />,
+      path: "/control/recruiter-approval",
+    },
+    {
+      name: "Internship Approval",
+      icon: <FiBriefcase />,
+      path: "/control/internships/approval",
+    },
+    {
+      name: "Create Internship",
+      icon: <FiBriefcase />,
+      path: "/control/internships/create",
+    },
+    {
+      name: "Payment Verification",
+      icon: <FiCreditCard />,
+      path: "/control/payment-verification",
+    },
+    {
+      name: "Payment Settings",
+      icon: <FiSettings />,
+      path: "/control/payment-settings",
+    },
+    {
+      name: "Offer Letter Templates",
+      icon: <FiFileText />,
+      path: "/control/offer-letter-templates",
+    },
+    {
+      name: "Offer Letter Verification",
+      icon: <FiCheckCircle />,
+      path: "/control/offer-letters/verification",
+    },
+    {
+      name: "Employee Certificate Templates",
+      icon: <FiAward />,
+      path: "/control/employee-certificate-templates",
+    },
+    {
+      name: "Certificate Verification",
+      icon: <FiAward />,
+      path: "/control/certificates/verification",
+    },
+    {
+      name: "Report Verification",
+      icon: <FiFileText />,
+      path: "/control/reports/verification",
+    },
+    {
+      name: "Report Templates",
+      icon: <FiFileText />,
+      path: "/control/report-templates",
+    },
+    {
+      name: "Referral Discount & Commission",
+      icon: <FiBookOpen />,
+      path: "/control/referral-settings",
+    },
+    {
+      name: "Contact & Support Settings",
+      icon: <FiSettings />,
+      path: "/control/contact-settings",
     },
     {
       name: "Settings",

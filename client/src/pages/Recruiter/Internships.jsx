@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -23,9 +24,13 @@ import {
   deleteInternship,
 } from "../../services/internshipService";
 
+import { useAuth } from "../../context/AuthContext";
+
 const GOLD = "#D4AF37";
 
 const Internships = () => {
+  const { user } = useAuth();
+  const recruiterId = user?.id || user?._id;
   const [internships, setInternships] =
     useState([]);
 
@@ -51,8 +56,13 @@ const Internships = () => {
     useState("");
 
   useEffect(() => {
-    loadInternships();
-  }, []);
+    if (recruiterId) {
+      loadInternships();
+    } else {
+      setError("Recruiter session not found. Please log in again.");
+      setLoading(false);
+    }
+  }, [recruiterId]);
 
   const loadInternships = async (
     isRefresh = false
@@ -67,7 +77,7 @@ const Internships = () => {
       setError("");
 
       const res =
-        await getRecruiterInternships();
+        await getRecruiterInternships(recruiterId);
 
       const list =
         res?.internships ||
@@ -1048,7 +1058,7 @@ const getAssetUrl = (
     return value;
   }
 
-  return `http://localhost:5000${value}`;
+  return `${API_ORIGIN}${value}`;
 };
 
 const formatDate = (

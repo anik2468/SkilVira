@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -348,13 +349,13 @@ const CreateInternship = () => {
         "http"
       )
       ? form.internshipImage
-      : `http://localhost:5000${form.internshipImage}`
+      : `${API_ORIGIN}${form.internshipImage}`
     : "";
 
   const logoUrl = form.companyLogo
     ? form.companyLogo.startsWith("http")
       ? form.companyLogo
-      : `http://localhost:5000${form.companyLogo}`
+      : `${API_ORIGIN}${form.companyLogo}`
     : "";
 
   return (

@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   FiUpload,
   FiSave,
-  FiBuilding,
+  FiBriefcase,
 } from "react-icons/fi";
 
 import Input from "../ui/Input";
@@ -115,7 +115,7 @@ const CompanyForm = ({
       {/* Header */}
       <div className="flex items-center gap-4">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FFF8E7] text-[#9A7B14]">
-          <FiBuilding size={22} />
+          <FiBriefcase size={22} />
         </div>
 
         <div>
@@ -150,7 +150,7 @@ const CompanyForm = ({
                 className="h-full w-full object-contain p-2"
               />
             ) : (
-              <FiBuilding
+              <FiBriefcase
                 size={30}
                 className="text-slate-300"
               />

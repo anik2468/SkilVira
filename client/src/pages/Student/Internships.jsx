@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -18,7 +19,7 @@ import {
   getInternships,
 } from "../../services/internshipService";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = API_ORIGIN;
 
 
 // =====================================================
@@ -648,7 +649,7 @@ const Internships = () => {
                     </button>
 
                     <Link
-                      to={`/student/internships/${item._id}`}
+                      to={`/internships/${item._id}`}
                       className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#D4AF37] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#b99520]"
                     >
                       View Details

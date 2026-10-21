@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useState } from "react";
 import {
   Building2,
@@ -59,7 +60,7 @@ const CompanyProfile = () => {
       return logo;
     }
 
-    return `http://localhost:5000${logo}`;
+    return `${API_ORIGIN}${logo}`;
   };
 
   useEffect(() => {

@@ -1,14 +1,30 @@
 import api from "./api";
 
-
 // =====================================================
 // CONTROL / ADMIN SERVICE
 // =====================================================
 
+const validateId = (id, label = "ID") => {
+  if (!id) {
+    throw new Error(`${label} is required.`);
+  }
+};
 
-// ======================================
-// Control Dashboard
-// ======================================
+const getUserList = (response) => {
+  if (Array.isArray(response?.users)) {
+    return response.users;
+  }
+
+  if (Array.isArray(response?.data)) {
+    return response.data;
+  }
+
+  return [];
+};
+
+// =====================================================
+// DASHBOARD
+// =====================================================
 
 export const getDashboardStats = async () => {
   const { data } = await api.get(
@@ -18,10 +34,9 @@ export const getDashboardStats = async () => {
   return data;
 };
 
-
-// ======================================
-// Users
-// ======================================
+// =====================================================
+// USERS
+// =====================================================
 
 export const getUsers = async () => {
   const { data } = await api.get(
@@ -31,121 +46,62 @@ export const getUsers = async () => {
   return data;
 };
 
-
-// ======================================
-// Get User By ID
-// ======================================
-
-export const getUserById = async (
-  id
-) => {
-  if (!id) {
-    throw new Error(
-      "User ID is required"
-    );
-  }
+export const getUserById = async (id) => {
+  validateId(id, "User ID");
 
   const { data } = await api.get(
-    `/control/users/${id}`
+    `/users/${id}`
   );
 
   return data;
 };
 
+export const deleteUser = async (id) => {
+  validateId(id, "User ID");
 
-// ======================================
-// Delete User
-// ======================================
-
-export const deleteUser = async (
-  id
-) => {
-  if (!id) {
-    throw new Error(
-      "User ID is required"
-    );
-  }
-
+  // This uses the soft-delete user controller.
   const { data } = await api.delete(
-    `/control/users/${id}`
+    `/users/${id}`
   );
 
   return data;
 };
 
-
-// ======================================
-// Block User
-// ======================================
-
-export const blockUser = async (
-  id
-) => {
-  if (!id) {
-    throw new Error(
-      "User ID is required"
-    );
-  }
+export const blockUser = async (id) => {
+  validateId(id, "User ID");
 
   const { data } = await api.put(
-    `/control/users/${id}/block`
+    `/users/block/${id}`
   );
 
   return data;
 };
 
-
-// ======================================
-// Unblock User
-// ======================================
-
-export const unblockUser = async (
-  id
-) => {
-  if (!id) {
-    throw new Error(
-      "User ID is required"
-    );
-  }
+export const unblockUser = async (id) => {
+  validateId(id, "User ID");
 
   const { data } = await api.put(
-    `/control/users/${id}/unblock`
+    `/users/unblock/${id}`
   );
 
   return data;
 };
-
 
 // =====================================================
 // INTERNSHIPS
 // =====================================================
 
-
-// ======================================
-// Get Internships
-// ======================================
-
-export const getInternships = async () => {
+export const getInternships = async (params = {}) => {
   const { data } = await api.get(
-    "/control/internships"
+    "/internships",
+    { params }
   );
 
   return data;
 };
 
-
-// ======================================
-// Approve Internship
-// ======================================
-
-export const approveInternship = async (
-  id
-) => {
-  if (!id) {
-    throw new Error(
-      "Internship ID is required"
-    );
-  }
+export const approveInternship = async (id) => {
+  validateId(id, "Internship ID");
 
   const { data } = await api.put(
     `/control/internships/${id}/approve`
@@ -154,19 +110,8 @@ export const approveInternship = async (
   return data;
 };
 
-
-// ======================================
-// Reject Internship
-// ======================================
-
-export const rejectInternship = async (
-  id
-) => {
-  if (!id) {
-    throw new Error(
-      "Internship ID is required"
-    );
-  }
+export const rejectInternship = async (id) => {
+  validateId(id, "Internship ID");
 
   const { data } = await api.put(
     `/control/internships/${id}/reject`
@@ -175,255 +120,150 @@ export const rejectInternship = async (
   return data;
 };
 
-
-// ======================================
-// Delete Internship
-// ======================================
-
-export const deleteInternship = async (
-  id
-) => {
-  if (!id) {
-    throw new Error(
-      "Internship ID is required"
-    );
-  }
+export const deleteInternship = async (id) => {
+  validateId(id, "Internship ID");
 
   const { data } = await api.delete(
-    `/control/internships/${id}`
+    `/internships/${id}`
   );
 
   return data;
 };
-
 
 // =====================================================
 // RECRUITERS
 // =====================================================
 
-
-// ======================================
-// Approve Recruiter
-// ======================================
-
-export const approveRecruiter = async (
-  id
-) => {
-  if (!id) {
-    throw new Error(
-      "Recruiter ID is required"
-    );
-  }
+export const approveRecruiter = async (id) => {
+  validateId(id, "Recruiter ID");
 
   const { data } = await api.put(
-    `/control/recruiters/${id}/approve`
+    `/users/recruiters/approve/${id}`
   );
 
   return data;
 };
 
-
-// ======================================
-// Reject Recruiter
-// ======================================
-
-export const rejectRecruiter = async (
-  id
-) => {
-  if (!id) {
-    throw new Error(
-      "Recruiter ID is required"
-    );
-  }
+export const rejectRecruiter = async (id) => {
+  validateId(id, "Recruiter ID");
 
   const { data } = await api.put(
-    `/control/recruiters/${id}/reject`
+    `/users/recruiters/reject/${id}`
   );
 
   return data;
 };
-
-
-// ======================================
-// Get Recruiters
-// ======================================
 
 export const getRecruiters = async () => {
   const { data } = await api.get(
-    "/control/recruiters"
+    "/users/role/recruiter"
   );
 
-  return data;
+  return {
+    ...data,
+    recruiters: getUserList(data),
+  };
 };
-
 
 // =====================================================
 // STUDENTS
 // =====================================================
 
-
-// ======================================
-// Get Students
-// ======================================
-
 export const getStudents = async () => {
   const { data } = await api.get(
-    "/control/students"
+    "/users/role/student"
   );
 
-  return data;
+  return {
+    ...data,
+    students: getUserList(data),
+  };
 };
 
-
-// ======================================
-// Delete Student
-// ======================================
-
-export const deleteStudent = async (
-  id
-) => {
-  if (!id) {
-    throw new Error(
-      "Student ID is required"
-    );
-  }
-
-  const { data } = await api.delete(
-    `/control/students/${id}`
-  );
-
-  return data;
+export const deleteStudent = async (id) => {
+  validateId(id, "Student ID");
+  return deleteUser(id);
 };
-
 
 // =====================================================
 // APPLICATIONS
 // =====================================================
 
-
-// ======================================
-// Get Applications
-// ======================================
-
 export const getApplications = async () => {
   const { data } = await api.get(
-    "/control/applications"
+    "/applications"
   );
 
   return data;
 };
 
+export const updateApplicationStatus = async (
+  id,
+  body
+) => {
+  validateId(id, "Application ID");
 
-// ======================================
-// Update Application Status
-// ======================================
+  if (!body || typeof body !== "object") {
+    throw new Error("Application status data is required.");
+  }
 
-export const updateApplicationStatus =
-  async (
-    id,
+  const { data } = await api.put(
+    `/applications/status/${id}`,
     body
-  ) => {
-    if (!id) {
-      throw new Error(
-        "Application ID is required"
-      );
-    }
+  );
 
-    const { data } = await api.put(
-      `/control/applications/${id}`,
-      body
-    );
-
-    return data;
-  };
-
+  return data;
+};
 
 // =====================================================
 // CERTIFICATES
 // =====================================================
 
-
-// ======================================
-// Get Certificates
-// ======================================
-
 export const getCertificates = async () => {
   const { data } = await api.get(
-    "/control/certificates"
+    "/certificates"
   );
 
   return data;
 };
 
-
-// ======================================
-// Verify Certificate
-// ======================================
-
-export const verifyCertificate = async (
-  id
-) => {
-  if (!id) {
-    throw new Error(
-      "Certificate ID is required"
-    );
-  }
+export const verifyCertificate = async (id) => {
+  validateId(id, "Certificate ID");
 
   const { data } = await api.put(
-    `/control/certificates/${id}/verify`
+    `/certificates/verify/id/${id}`
   );
 
   return data;
 };
 
-
 // =====================================================
-// UNIVERSITIES / COLLEGES
+// COLLEGES
+// NOTE: The provided backend ZIP does not contain a
+// mounted /api/colleges implementation. These methods
+// are retained for frontend compatibility.
 // =====================================================
-
-
-// ======================================
-// Get Colleges
-// ======================================
 
 export const getColleges = async () => {
-  const { data } = await api.get(
-    "/control/colleges"
-  );
-
+  const { data } = await api.get("/colleges");
   return data;
 };
 
-
-// ======================================
-// Delete College
-// ======================================
-
-export const deleteCollege = async (
-  id
-) => {
-  if (!id) {
-    throw new Error(
-      "College ID is required"
-    );
-  }
+export const deleteCollege = async (id) => {
+  validateId(id, "College ID");
 
   const { data } = await api.delete(
-    `/control/colleges/${id}`
+    `/colleges/${id}`
   );
 
   return data;
 };
 
-
 // =====================================================
-// SETTINGS
+// CONTROL SETTINGS
+// NOTE: A matching settings endpoint must exist in
+// the backend before these calls can work.
 // =====================================================
-
-
-// ======================================
-// Get Control Settings
-// ======================================
 
 export const getControlSettings = async () => {
   const { data } = await api.get(
@@ -433,18 +273,9 @@ export const getControlSettings = async () => {
   return data;
 };
 
-
-// ======================================
-// Update Control Settings
-// ======================================
-
-export const updateControlSettings = async (
-  body
-) => {
-  if (!body) {
-    throw new Error(
-      "Settings data is required"
-    );
+export const updateControlSettings = async (body) => {
+  if (!body || typeof body !== "object") {
+    throw new Error("Settings data is required.");
   }
 
   const { data } = await api.put(
@@ -455,41 +286,32 @@ export const updateControlSettings = async (
   return data;
 };
 
-
 // =====================================================
 // DEFAULT EXPORT
 // =====================================================
 
 export default {
   getDashboardStats,
-
   getUsers,
   getUserById,
   deleteUser,
   blockUser,
   unblockUser,
-
   getInternships,
   approveInternship,
   rejectInternship,
   deleteInternship,
-
   approveRecruiter,
   rejectRecruiter,
   getRecruiters,
-
   getStudents,
   deleteStudent,
-
   getApplications,
   updateApplicationStatus,
-
   getCertificates,
   verifyCertificate,
-
   getColleges,
   deleteCollege,
-
   getControlSettings,
   updateControlSettings,
 };

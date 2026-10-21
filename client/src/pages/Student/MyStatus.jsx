@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   FiAward,
@@ -20,7 +21,7 @@ import {
   getMyStatus,
 } from "../../services/studentStatusService";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = API_ORIGIN;
 
 
 // =====================================================

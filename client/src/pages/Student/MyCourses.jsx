@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -15,7 +16,7 @@ import {
   getMyCourses,
 } from "../../services/enrollmentService";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = API_ORIGIN;
 
 
 // =====================================================

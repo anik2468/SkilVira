@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Production build
+client/dist/
+
+# Environment files and secrets
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!.env.*.example
+
+# Uploaded media: retain locally, transfer separately for production
+server/uploads/
+**/uploads/
+
+# Local tooling
+.vscode/
+.DS_Store
+coverage/
+*.log
+
+# Temporary backups
+*.bak*
+*.before*
+*.tmp
+
+# Generated diagnostics
+structure.txt
+skilvira_fix_audit.txt
+ys

@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 import {
   Link,
@@ -24,7 +25,7 @@ import {
 
 import ApplyInternshipModal from "../../components/student/ApplyInternshipModal";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = API_ORIGIN;
 
 
 // =====================================================
@@ -326,7 +327,7 @@ const InternshipDetails = () => {
 
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link
-              to="/student/internships"
+              to="/internships"
               className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-700 transition hover:border-[#D4AF37] hover:text-[#8B6E12]"
             >
               <FiArrowLeft />
@@ -368,7 +369,7 @@ const InternshipDetails = () => {
       <div className="space-y-7 pb-8">
         {/* Back */}
         <Link
-          to="/student/internships"
+          to="/internships"
           className="inline-flex items-center gap-2 text-sm font-semibold text-gray-600 transition hover:text-[#8B6E12]"
         >
           <FiArrowLeft />

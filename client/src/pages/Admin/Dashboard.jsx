@@ -33,6 +33,7 @@ const Dashboard = () => {
     applications: 0,
     certificates: 0,
     payments: 0,
+    netRevenue: 0,
   });
 
   const [loading, setLoading] = useState(true);
@@ -66,6 +67,7 @@ const Dashboard = () => {
         applications: Number(incoming.applications || 0),
         certificates: Number(incoming.certificates || 0),
         payments: Number(incoming.payments || 0),
+        netRevenue: Number(incoming.netRevenue || 0),
       });
     } catch (err) {
       console.error("ADMIN DASHBOARD ERROR:", err);
@@ -406,16 +408,16 @@ const Dashboard = () => {
 
             <div className="mt-7 rounded-3xl border border-white/10 bg-white/5 p-5">
               <p className="text-xs font-bold uppercase tracking-[0.15em] text-gray-500">
-                Payment volume
+                Net revenue · approved payments
               </p>
 
               <p className="mt-2 text-4xl font-black">
-                ₹ {formatNumber(stats.payments)}
+                ₹ {formatNumber(stats.netRevenue)}
               </p>
 
               <p className="mt-2 text-xs leading-5 text-gray-500">
-                Based on the value returned by the existing admin
-                dashboard API.
+                Student discounts are already reflected in the paid amount;
+                recorded ambassador commission is deducted.
               </p>
             </div>
 

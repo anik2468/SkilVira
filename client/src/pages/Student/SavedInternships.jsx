@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -23,7 +24,7 @@ import {
 // CONSTANTS
 // =====================================================
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = API_ORIGIN;
 
 const STORAGE_KEY =
   "skilvira_saved_internships";

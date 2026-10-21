@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import Hero3D from "./Hero3D";
 
 import Button from "../ui/Button";
@@ -6,6 +7,7 @@ import FloatingCards from "./FloatingCards";
 import Stats from "./Stats";
 
 const Hero = () => {
+  const navigate = useNavigate();
   return (
     <section className="relative isolate overflow-hidden bg-white">
 
@@ -93,11 +95,11 @@ const Hero = () => {
           {/* CTA Buttons */}
           <div className="mt-7 flex flex-col items-center gap-3 sm:flex-row lg:justify-start">
 
-            <Button>
+            <Button onClick={() => navigate("/internships")}>
               Explore Internships
             </Button>
 
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => navigate("/courses")}>
               Start Learning
             </Button>
 

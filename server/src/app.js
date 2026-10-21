@@ -4,10 +4,6 @@ import cookieParser from "cookie-parser";
 import morgan from "morgan";
 import path from "path";
 
-// =====================================================
-// EXISTING ROUTES
-// =====================================================
-
 import authRoutes from "./routes/authRoutes.js";
 import internshipRoutes from "./routes/internshipRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
@@ -23,463 +19,176 @@ import uploadRoutes from "./routes/uploadRoutes.js";
 import controlRoutes from "./routes/controlRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
 import enrollmentRoutes from "./routes/enrollmentRoutes.js";
+import liveClassRoutes from "./routes/liveClassRoutes.js";
 import lessonRoutes from "./routes/lessonRoutes.js";
 import referralRoutes from "./routes/referralRoutes.js";
 import companySettingRoutes from "./routes/companySettingRoutes.js";
 import communityRoutes from "./routes/communityRoutes.js";
-
-// =====================================================
-// CERTIFICATE SYSTEM
-// =====================================================
+import companyRoutes from "./routes/companyRoutes.js";
+import universityRoutes from "./routes/universityRoutes.js";
 
 import certificateRoutes from "./routes/certificateRoutes.js";
 import certificateTemplateRoutes from "./routes/certificateTemplateRoutes.js";
 import certificateGenerateRoutes from "./routes/certificateGenerateRoutes.js";
-
-// =====================================================
-// OFFER LETTER SYSTEM
-// =====================================================
+import generatedCertificateRoutes from "./routes/generatedCertificateRoutes.js";
 
 import offerLetterTemplateRoutes from "./routes/offerLetterTemplateRoutes.js";
 import generatedOfferLetterRoutes from "./routes/generatedOfferLetterRoutes.js";
 
-// =====================================================
-// REPORT SYSTEM
-// =====================================================
-
 import reportTemplateRoutes from "./routes/reportTemplateRoutes.js";
 import generatedReportRoutes from "./routes/generatedReportRoutes.js";
 
-// =====================================================
-// NOTIFICATION SYSTEM
-// =====================================================
-
 import notificationRoutes from "./routes/notificationRoutes.js";
-
-// =====================================================
-// PAYMENT SETTINGS
-// =====================================================
-
 import paymentSettingRoutes from "./routes/paymentSettingRoutes.js";
 
-// =====================================================
-// STUDENT DOCUMENT SYSTEM
-// =====================================================
-
 import studentDocumentRoutes from "./routes/studentDocumentRoutes.js";
-
-// =====================================================
-// STUDENT OFFER LETTER SYSTEM
-// =====================================================
-
 import studentOfferLetterRoutes from "./routes/studentOfferLetterRoutes.js";
-
-// =====================================================
-// STUDENT STATUS / TRACKING SYSTEM
-// =====================================================
-
 import studentStatusRoutes from "./routes/studentStatusRoutes.js";
-
-// =====================================================
-// ENROLLMENT COMPLETION SYSTEM
-// =====================================================
-
 import enrollmentCompletionRoutes from "./routes/enrollmentCompletionRoutes.js";
-
-// =====================================================
-// APP
-// =====================================================
+import controlEmployeeRoutes from "./routes/controlEmployeeRoutes.js";
 
 const app = express();
 
-// =====================================================
-// MIDDLEWARES
-// =====================================================
+const allowedOrigins = (
+  process.env.CLIENT_URL || "http://localhost:5173"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Origin not allowed by CORS"));
+    },
     credentials: true,
   })
 );
 
-app.use(express.json());
-
-app.use(
-  express.urlencoded({
-    extended: true,
-  })
-);
-
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(cookieParser());
 app.use(morgan("dev"));
 
-// =====================================================
-// STATIC UPLOADS
-// =====================================================
-
 app.use(
   "/uploads",
-  express.static(
-    path.join(
-      process.cwd(),
-      "uploads"
-    )
-  )
+  express.static(path.join(process.cwd(), "uploads"))
 );
 
-// =====================================================
-// AUTH
-// =====================================================
-
-app.use(
-  "/api/auth",
-  authRoutes
-);
-
-// =====================================================
-// INTERNSHIPS
-// =====================================================
-
-app.use(
-  "/api/internships",
-  internshipRoutes
-);
-
-// =====================================================
-// DASHBOARD
-// =====================================================
-
-app.use(
-  "/api/dashboard",
-  dashboardRoutes
-);
-
-// =====================================================
-// STUDENT
-// =====================================================
-
-app.use(
-  "/api/student",
-  studentRoutes
-);
-
-app.use(
-  "/api/student-profile",
-  studentProfileRoutes
-);
-
-// =====================================================
-// STUDENT DOCUMENTS
-// =====================================================
-
-app.use(
-  "/api/student-documents",
-  studentDocumentRoutes
-);
-
-// =====================================================
-// STUDENT OFFER LETTERS
-// =====================================================
-
-app.use(
-  "/api/student-offer-letters",
-  studentOfferLetterRoutes
-);
-
-// =====================================================
-// STUDENT STATUS / TRACKING
-// =====================================================
-
-app.use(
-  "/api/student-status",
-  studentStatusRoutes
-);
-
-// =====================================================
-// APPLICATIONS
-// =====================================================
-
-app.use(
-  "/api/applications",
-  applicationRoutes
-);
-
-// =====================================================
-// RECRUITER
-// =====================================================
-
-app.use(
-  "/api/recruiter",
-  recruiterRoutes
-);
-
-// =====================================================
-// EMPLOYEE
-// =====================================================
-
-app.use(
-  "/api/employee",
-  employeeRoutes
-);
-
-// =====================================================
-// AMBASSADOR
-// =====================================================
-
-app.use(
-  "/api/ambassador",
-  ambassadorRoutes
-);
-
-// =====================================================
-// USERS
-// =====================================================
-
-app.use(
-  "/api/users",
-  userRoutes
-);
-
-// =====================================================
-// CONTROL / ADMIN
-// =====================================================
-
-app.use(
-  "/api/control",
-  controlRoutes
-);
-
-// =====================================================
-// COURSES
-// =====================================================
-
-app.use(
-  "/api/courses",
-  courseRoutes
-);
-
-// =====================================================
-// PAYMENTS
-// =====================================================
-
-app.use(
-  "/api/payments",
-  paymentRoutes
-);
-
-// =====================================================
-// UPLOAD
-// =====================================================
-
-app.use(
-  "/api/upload",
-  uploadRoutes
-);
-
-// =====================================================
-// ENROLLMENT
-// =====================================================
-
-app.use(
-  "/api/enrollment",
-  enrollmentRoutes
-);
-
-// =====================================================
-// ENROLLMENT COMPLETION
-// =====================================================
-
-app.use(
-  "/api/enrollment-completion",
-  enrollmentCompletionRoutes
-);
-
-// =====================================================
-// LESSONS
-// =====================================================
-
-app.use(
-  "/api/lessons",
-  lessonRoutes
-);
-
-// =====================================================
-// REFERRAL SYSTEM
-// =====================================================
-
-// Preferred plural route
-app.use(
-  "/api/referrals",
-  referralRoutes
-);
-
-// Backward compatibility
-app.use(
-  "/api/referral",
-  referralRoutes
-);
-
-// =====================================================
-// COMMUNITY SYSTEM
-// =====================================================
-
-app.use(
-  "/api/communities",
-  communityRoutes
-);
-
-// =====================================================
-// COMPANY SETTINGS
-// =====================================================
-
-app.use(
-  "/api/company-settings",
-  companySettingRoutes
-);
-
-// =====================================================
-// PAYMENT SETTINGS
-// Employee manages QR / UPI / Bank Details
-// =====================================================
-
-app.use(
-  "/api/payment-settings",
-  paymentSettingRoutes
-);
-
-// =====================================================
-// NOTIFICATIONS
-// =====================================================
-
-app.use(
-  "/api/notifications",
-  notificationRoutes
-);
-
-// =====================================================
-// CERTIFICATE SYSTEM
-// =====================================================
-
-// Existing certificate routes
-app.use(
-  "/api/certificates",
-  certificateRoutes
-);
-
-// Existing singular template path
-app.use(
-  "/api/certificate-template",
-  certificateTemplateRoutes
-);
-
-// Frontend-friendly plural template path
-app.use(
-  "/api/certificate-templates",
-  certificateTemplateRoutes
-);
-
-// Generated certificate
-app.use(
-  "/api/certificate",
-  certificateGenerateRoutes
-);
-
-// Compatibility alias
-app.use(
-  "/api/generated-certificates",
-  certificateGenerateRoutes
-);
-
-// =====================================================
-// OFFER LETTER TEMPLATE SYSTEM
-// =====================================================
-
-app.use(
-  "/api/offer-letter-templates",
-  offerLetterTemplateRoutes
-);
-
-// =====================================================
-// GENERATED OFFER LETTER SYSTEM
-// =====================================================
-
-app.use(
-  "/api/generated-offer-letter",
-  generatedOfferLetterRoutes
-);
-
-// =====================================================
-// REPORT TEMPLATE SYSTEM
-// =====================================================
-
-app.use(
-  "/api/report-templates",
-  reportTemplateRoutes
-);
-
-// =====================================================
-// GENERATED REPORT SYSTEM
-// =====================================================
-
-app.use(
-  "/api/generated-report",
-  generatedReportRoutes
-);
-
-// =====================================================
-// HEALTH CHECK
-// =====================================================
-
-app.get(
-  "/",
-  (req, res) => {
-    res.status(200).json({
-      success: true,
-      message:
-        "🚀 SkilVira API is running...",
-      version: "1.0.0",
-    });
+// Authentication
+app.use("/api/auth", authRoutes);
+
+// Main platform
+app.use("/api/internships", internshipRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/student", studentRoutes);
+app.use("/api/student-profile", studentProfileRoutes);
+app.use("/api/applications", applicationRoutes);
+app.use("/api/recruiter", recruiterRoutes);
+app.use("/api/employee", employeeRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/control", controlEmployeeRoutes);
+app.use("/api/control", controlRoutes);
+// Both aliases support older and newer frontend service calls.
+app.use("/api/ambassador", ambassadorRoutes);
+app.use("/api/ambassadors", ambassadorRoutes);
+
+// Companies and college/university directory
+app.use("/api/companies", companyRoutes);
+app.use("/api/universities", universityRoutes);
+app.use("/api/colleges", universityRoutes);
+
+// Legacy and Control college API aliases
+app.use("/api/control/colleges", universityRoutes);
+app.use("/api/control/universities", universityRoutes);
+
+// Courses and learning
+app.use("/api/courses", courseRoutes);
+app.use("/api/lessons", lessonRoutes);
+app.use("/api/enrollment", enrollmentRoutes);
+app.use("/api/live-classes", liveClassRoutes);
+app.use("/api/enrollment-completion", enrollmentCompletionRoutes);
+
+// Payments and uploads
+app.use("/api/payments", paymentRoutes);
+app.use("/api/payment-settings", paymentSettingRoutes);
+app.use("/api/upload", uploadRoutes);
+
+// Referral and communities
+app.use("/api/referral", referralRoutes);
+app.use("/api/referrals", referralRoutes);
+app.use("/api/communities", communityRoutes);
+
+// Company/platform settings
+app.use("/api/company-settings", companySettingRoutes);
+
+// Notifications
+app.use("/api/notifications", notificationRoutes);
+
+// Student documents
+app.use("/api/student-documents", studentDocumentRoutes);
+app.use("/api/student-offer-letters", studentOfferLetterRoutes);
+app.use("/api/student-status", studentStatusRoutes);
+
+// Certificates
+app.use("/api/certificates", certificateRoutes);
+app.use("/api/certificate-template", certificateTemplateRoutes);
+app.use("/api/certificate-templates", certificateTemplateRoutes);
+
+// Legacy certificate draft-generation endpoint
+app.use("/api/certificate", certificateGenerateRoutes);
+
+// IMPORTANT: Workflow APIs must use generatedCertificateRoutes,
+// not the legacy certificateGenerateRoutes.
+app.use("/api/generated-certificates", generatedCertificateRoutes);
+
+// Offer letters
+app.use("/api/offer-letter-templates", offerLetterTemplateRoutes);
+app.use("/api/generated-offer-letter", generatedOfferLetterRoutes);
+
+// Reports
+app.use("/api/report-templates", reportTemplateRoutes);
+app.use("/api/generated-report", generatedReportRoutes);
+
+// Health check
+app.get("/", (req, res) => {
+  return res.status(200).json({
+    success: true,
+    message: "SkilVira API is running.",
+    version: "1.0.0",
+  });
+});
+
+// Unknown API route
+app.use((req, res) => {
+  return res.status(404).json({
+    success: false,
+    message: "API Route Not Found",
+    path: req.originalUrl,
+  });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error("GLOBAL ERROR:", err);
+
+  if (res.headersSent) {
+    return next(err);
   }
-);
 
-// =====================================================
-// 404 HANDLER
-// =====================================================
+  const status = Number(err.status || err.statusCode) || 500;
 
-app.use(
-  (req, res) => {
-    res.status(404).json({
-      success: false,
-      message:
-        "API Route Not Found",
-      path: req.originalUrl,
-    });
-  }
-);
-
-// =====================================================
-// GLOBAL ERROR HANDLER
-// =====================================================
-
-app.use(
-  (err, req, res, next) => {
-    console.error(
-      "GLOBAL ERROR:",
-      err
-    );
-
-    res
-      .status(
-        err.status || 500
-      )
-      .json({
-        success: false,
-        message:
-          err.message ||
-          "Internal Server Error",
-      });
-  }
-);
+  return res.status(status).json({
+    success: false,
+    message:
+      status >= 500
+        ? "Internal Server Error"
+        : err.message || "Request failed",
+  });
+});
 
 export default app;

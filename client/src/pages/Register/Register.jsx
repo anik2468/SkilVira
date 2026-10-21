@@ -6,7 +6,7 @@ import {
 } from "react-router-dom";
 
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import api from "../../services/api";
 
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
@@ -109,6 +109,20 @@ const Register = () => {
     email: "",
     password: "",
     confirmPassword: "",
+    phone: "",
+    designation: "",
+    department: "",
+    companyName: "",
+    website: "",
+    industry: "",
+    college: "",
+    university: "",
+    course: "",
+    branch: "",
+    semester: "",
+    graduationYear: "",
+    city: "",
+    state: "",
   });
 
   const [loading, setLoading] =
@@ -164,6 +178,20 @@ const Register = () => {
       );
     }
 
+    const requiredByRole = {
+      recruiter: ["companyName", "designation", "phone"],
+      employee: ["designation", "department", "phone"],
+      ambassador: ["college", "course", "branch", "semester", "phone"],
+    };
+
+    const missingRoleFields = (requiredByRole[currentRole] || []).some(
+      (field) => !String(formData[field] || "").trim()
+    );
+
+    if (missingRoleFields) {
+      return alert("Please complete all required role-specific fields.");
+    }
+
     if (
       formData.password !==
       formData.confirmPassword
@@ -188,6 +216,21 @@ const Register = () => {
 
         role: currentRole,
 
+        phone: formData.phone.trim(),
+        designation: formData.designation.trim(),
+        department: formData.department.trim(),
+        companyName: formData.companyName.trim(),
+        website: formData.website.trim(),
+        industry: formData.industry.trim(),
+        college: formData.college.trim(),
+        university: formData.university.trim(),
+        course: formData.course.trim(),
+        branch: formData.branch.trim(),
+        semester: formData.semester.trim(),
+        graduationYear: formData.graduationYear.trim(),
+        city: formData.city.trim(),
+        state: formData.state.trim(),
+
         // =====================================
         // REFERRAL
         // Only students receive referral code.
@@ -200,10 +243,7 @@ const Register = () => {
             : null,
       };
 
-      const response = await axios.post(
-        "http://localhost:5000/api/auth/register",
-        payload
-      );
+      const response = await api.post("/auth/register", payload);
 
       console.log(
         "REGISTER RESPONSE:",
@@ -233,14 +273,18 @@ const Register = () => {
       }
 
       alert(
-        currentRole === "recruiter" ||
-          currentRole === "ambassador"
-          ? "Registration successful. Wait for approval."
+        ["recruiter", "ambassador", "employee"].includes(currentRole)
+          ? currentRole === "employee"
+            ? "Application submitted. An admin must approve your account before login."
+            : "Registration successful. Wait for approval."
           : "Registration successful."
       );
 
+      const returnTo = searchParams.get("returnTo");
       navigate(
-        `/login/${currentRole}`
+        `/login/${currentRole}${
+          returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""
+        }`
       );
     } catch (err) {
       console.error(
@@ -267,10 +311,10 @@ const Register = () => {
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
-      <AuthBranding />
+      <div className="auth-branding-compact"><AuthBranding /></div>
 
       <div className="flex flex-1 items-center justify-center p-6">
-        <Card className="w-full max-w-md p-8">
+        <Card className="w-full max-w-2xl p-6 sm:p-8">
           {/* Header */}
           <div className="mb-8 text-center">
             <h1 className="text-4xl font-bold text-[#111827]">
@@ -354,6 +398,78 @@ const Register = () => {
               placeholder="Confirm password"
               required
             />
+
+            {currentRole === "recruiter" && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Input label="Company Name" name="companyName"
+                  value={formData.companyName} onChange={handleChange}
+                  placeholder="Company name" required />
+                <Input label="Your Designation" name="designation"
+                  value={formData.designation} onChange={handleChange}
+                  placeholder="HR / Recruiter" required />
+                <Input label="Contact Phone" name="phone" type="tel"
+                  value={formData.phone} onChange={handleChange}
+                  placeholder="Phone number" required />
+                <Input label="Company Website" name="website"
+                  value={formData.website} onChange={handleChange}
+                  placeholder="https://example.com" />
+                <Input label="Industry" name="industry"
+                  value={formData.industry} onChange={handleChange}
+                  placeholder="Industry" />
+                <Input label="City" name="city"
+                  value={formData.city} onChange={handleChange}
+                  placeholder="Company city" />
+                <Input label="State" name="state"
+                  value={formData.state} onChange={handleChange}
+                  placeholder="Company state" />
+              </div>
+            )}
+
+            {currentRole === "employee" && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Input label="Phone Number" name="phone" type="tel"
+                  value={formData.phone} onChange={handleChange}
+                  placeholder="Phone number" required />
+                <Input label="Designation" name="designation"
+                  value={formData.designation} onChange={handleChange}
+                  placeholder="Your designation" required />
+                <Input label="Department" name="department"
+                  value={formData.department} onChange={handleChange}
+                  placeholder="Department" required />
+              </div>
+            )}
+
+            {currentRole === "ambassador" && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Input label="College Name" name="college"
+                  value={formData.college} onChange={handleChange}
+                  placeholder="College name" required />
+                <Input label="University" name="university"
+                  value={formData.university} onChange={handleChange}
+                  placeholder="University name" />
+                <Input label="Phone Number" name="phone" type="tel"
+                  value={formData.phone} onChange={handleChange}
+                  placeholder="Phone number" required />
+                <Input label="Course / Degree" name="course"
+                  value={formData.course} onChange={handleChange}
+                  placeholder="B.Tech, BCA, etc." required />
+                <Input label="Branch" name="branch"
+                  value={formData.branch} onChange={handleChange}
+                  placeholder="CSE, ECE, etc." required />
+                <Input label="Current Semester / Year" name="semester"
+                  value={formData.semester} onChange={handleChange}
+                  placeholder="e.g. 3rd semester" required />
+                <Input label="Graduation Year" name="graduationYear"
+                  value={formData.graduationYear} onChange={handleChange}
+                  placeholder="e.g. 2028" />
+                <Input label="City" name="city"
+                  value={formData.city} onChange={handleChange}
+                  placeholder="City" />
+                <Input label="State" name="state"
+                  value={formData.state} onChange={handleChange}
+                  placeholder="State" />
+              </div>
+            )}
 
             <Button
               className="w-full"

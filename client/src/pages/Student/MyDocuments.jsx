@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -17,7 +18,7 @@ import {
 
 
 const API_BASE =
-  "http://localhost:5000";
+  API_ORIGIN;
 
 
 // =====================================================

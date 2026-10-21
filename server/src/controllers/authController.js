@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 
 import User from "../models/User.js";
+import ActivityLog from "../models/ActivityLog.js";
 
 import StudentProfile from "../models/StudentProfile.js";
 import RecruiterProfile from "../models/RecruiterProfile.js";
@@ -10,1047 +11,822 @@ import EmployeeProfile from "../models/EmployeeProfile.js";
 import AmbassadorProfile from "../models/AmbassadorProfile.js";
 
 
-
-
 // ========================================
-// Register
+// HELPERS
 // ========================================
 
-export const register = async(req,res)=>{
-
-
-try{
-
-
-const {
-
-name,
-
-email,
-
-password,
-
-role,
-
-referralCode,
-
-}=req.body;
-
-
-
-
-
-if(
-!name ||
-!email ||
-!password ||
-!role
-){
-
-return res.status(400).json({
-
-success:false,
-
-message:"All fields are required."
-
-});
-
-}
-
-
-
-
-
-
-const allowedRoles=[
-
-"student",
-
-"recruiter",
-
-"ambassador",
-
-"employee",
-
-];
-
-
-
-
-
-if(!allowedRoles.includes(role)){
-
-
-return res.status(403).json({
-
-success:false,
-
-message:"Registration not allowed."
-
-});
-
-
-}
-
-
-
-
-
-
-
-const existingUser =
-await User.findOne({
-
-email:email.toLowerCase()
-
-});
-
-
-
-
-
-if(existingUser){
-
-
-return res.status(409).json({
-
-success:false,
-
-message:"Email already registered."
-
-});
-
-
-}
-
-
-
-
-
-
-
-let referredBy=null;
-
-
-
-// ===============================
-// Referral Check
-// ===============================
-
-
-if(
-role==="student" &&
-referralCode
-){
-
-
-const ambassador =
-await User.findOne({
-
-referralCode,
-
-role:"ambassador",
-
-ambassadorApproved:true
-
-});
-
-
-
-
-
-if(ambassador){
-
-
-referredBy =
-ambassador._id;
-
-
-}
-
-
-
-}
-
-
-
-
-
-
-
-
-
-const hashedPassword =
-await bcrypt.hash(
-password,
-10
-);
-
-
-
-
-
-
-const user =
-await User.create({
-
-name,
-
-email:
-email.toLowerCase(),
-
-password:
-hashedPassword,
-
-
-role,
-
-
-
-// Referral
-
-referredBy,
-
-
-
-
-// Approval
-
-recruiterApproved:
-role==="recruiter"
-?
-false
-:
-true,
-
-
-ambassadorApproved:
-role==="ambassador"
-?
-false
-:
-true,
-
-
-companyVerified:false,
-
-
-emailVerified:false,
-
-
-phoneVerified:false,
-
-
-status:"active",
-
-
-authProvider:"local",
-
-
-});
-
-
-
-
-
-
-
-
-// =====================
-// Student Profile
-// =====================
-
-
-if(role==="student"){
-
-
-await StudentProfile.create({
-
-user:user._id,
-
-degree:"B.Tech",
-
-country:"India",
-
-profileCompleted:5,
-
-});
-
-
-}
-
-
-
-
-
-
-
-// =====================
-// Recruiter Profile
-// =====================
-
-
-if(role==="recruiter"){
-
-
-await RecruiterProfile.create({
-
-user:user._id,
-
-});
-
-
-}
-
-
-
-
-
-
-
-
-// =====================
-// Employee Profile
-// =====================
-
-
-if(role==="employee"){
-
-
-await EmployeeProfile.create({
-
-user:user._id,
-
-department:"Operations",
-
-profileCompleted:5,
-
-});
-
-
-}
-
-
-
-
-
-
-
-// =====================
-// Ambassador Profile
-// =====================
-
-
-if(role==="ambassador"){
-
-
-const referralCode =
-
-"SKIL" +
-user._id
-.toString()
-.slice(-6)
-.toUpperCase();
-
-
-
-
-await AmbassadorProfile.create({
-
-user:user._id,
-
-referralCode,
-
-
-totalReferrals:0,
-
-successfulReferrals:0,
-
-rewardPoints:0,
-
-rank:0,
-
-profileCompleted:5,
-
-});
-
-
-
-
-
-user.referralCode =
-referralCode;
-
-
-await user.save();
-
-
-
-}
-
-
-
-
-
-res.status(201).json({
-
-success:true,
-
-
-message:
-role==="recruiter" ||
-role==="ambassador"
-
-?
-
-`${role} registered successfully. Waiting for approval.`
-
-:
-
-"Registration successful.",
-
-
-
-user:{
-
-
-id:user._id,
-
-
-name:user.name,
-
-
-email:user.email,
-
-
-role:user.role,
-
-
-},
-
-
-
-});
-
-
-
-
-
-}catch(error){
-
-
-console.error(
-"Register Error:",
-error
-);
-
-
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-
-}
-
-
-
+const normalizeReferralCode = (code) => {
+  return String(code || "")
+    .trim()
+    .toUpperCase();
 };
 
 
-
-
-
-
 // ========================================
-// Login
+// REGISTER
 // ========================================
 
+export const register = async (
+  req,
+  res
+) => {
+  try {
+    const {
+      name,
+      email,
+      password,
+      role,
+      referralCode,
+      phone,
+      designation,
+      department,
+      companyName,
+      website,
+      industry,
+      college,
+      university,
+      course,
+      branch,
+      semester,
+      graduationYear,
+      city,
+      state,
+    } = req.body;
+
+
+    // ========================================
+    // VALIDATION
+    // ========================================
+
+    if (
+      !name ||
+      !email ||
+      !password ||
+      !role
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required.",
+      });
+    }
+
+
+    // ========================================
+    // ALLOWED ROLES
+    // ========================================
+
+    const allowedRoles = [
+      "student",
+      "recruiter",
+      "ambassador",
+      "employee",
+    ];
+
+
+    if (
+      !allowedRoles.includes(role)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Registration not allowed.",
+      });
+    }
+
+
+    const requiredProfileFields = {
+      recruiter: [companyName, designation, phone],
+      employee: [designation, department, phone],
+      ambassador: [college, course, branch, semester, phone],
+    }[role] || [];
+
+    if (requiredProfileFields.some(
+      (value) => !String(value || "").trim()
+    )) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide all required registration details.",
+      });
+    }
+
+    // ========================================
+    // NORMALIZE EMAIL
+    // ========================================
+
+    const normalizedEmail =
+      email
+        .trim()
+        .toLowerCase();
+
+
+    // ========================================
+    // EXISTING USER
+    // ========================================
+
+    const existingUser =
+      await User.findOne({
+        email: normalizedEmail,
+      });
 
-export const login = async(req,res)=>{
 
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Email already registered.",
+      });
+    }
 
-try{
 
+    // ========================================
+    // REFERRAL
+    // ========================================
 
-const {
+    let referredBy = null;
 
-email,
+    if (
+      role === "student" &&
+      referralCode
+    ) {
+      const normalizedCode =
+        normalizeReferralCode(
+          referralCode
+        );
 
-password,
 
-}=req.body;
+      if (normalizedCode) {
+        const ambassador =
+          await User.findOne({
+            referralCode:
+              normalizedCode,
 
+            role: "ambassador",
 
+            ambassadorApproved: true,
 
+            status: "active",
 
+            isDeleted: {
+              $ne: true,
+            },
+          });
 
-const user =
-await User.findOne({
 
-email:
-email.toLowerCase(),
+        if (ambassador) {
+          referredBy =
+            ambassador._id;
+        }
+      }
+    }
 
-});
 
+    // ========================================
+    // PASSWORD
+    // ========================================
 
+    const hashedPassword =
+      await bcrypt.hash(
+        password,
+        10
+      );
 
 
+    // ========================================
+    // CREATE USER
+    //
+    // Referral registration tracking is
+    // handled by User.js post-save hook.
+    // ========================================
 
+    const user =
+      await User.create({
+        name:
+          name.trim(),
 
+        email:
+          normalizedEmail,
 
-if(!user){
+        password:
+          hashedPassword,
 
+        role,
 
-return res.status(404).json({
+        referredBy,
 
-success:false,
 
-message:"User not found."
+        // Recruiter approval
+        recruiterApproved:
+          role === "recruiter"
+            ? false
+            : true,
 
-});
 
+        // Ambassador approval
+        ambassadorApproved:
+          role === "ambassador"
+            ? false
+            : true,
 
-}
 
+        companyVerified:
+          false,
 
-
-
-
-
-
-if(
-user.role==="recruiter" &&
-!user.recruiterApproved
-){
-
-
-return res.status(403).json({
-
-success:false,
-
-message:"Recruiter account under review."
-
-});
-
-
-}
-
-
-
-
-
-
-
-if(
-user.role==="ambassador" &&
-!user.ambassadorApproved
-){
-
-
-return res.status(403).json({
-
-success:false,
-
-message:"Ambassador account under review."
-
-});
-
-
-}
-
-
-
-
-
-
-
-const matched =
-await bcrypt.compare(
-
-password,
-
-user.password
-
-);
-
-
-
-
-
-
-
-if(!matched){
-
-
-return res.status(401).json({
-
-success:false,
-
-message:"Invalid email or password."
-
-});
-
-
-}
-
-
-
-
-
-
-
-const token =
-jwt.sign(
-
-{
-
-id:user._id,
-
-role:user.role,
-
-},
-
-process.env.JWT_SECRET,
-
-{
-
-expiresIn:"7d"
-
-}
-
-);
-
-
-
-
-
-
-
-
-user.lastLogin=new Date();
-
-user.lastActive=new Date();
-
-user.refreshToken=token;
-
-
-
-await user.save();
-
-
-
-
-
-
-
-
-res.status(200).json({
-
-success:true,
-
-message:"Login successful.",
-
-
-token,
-
-
-user:{
-
-
-id:user._id,
-
-name:user.name,
-
-email:user.email,
-
-role:user.role,
-
-
-referralCode:user.referralCode || null,
-
-
-}
-
-
-
-});
-
-
-
-
-
-
-}catch(error){
-
-
-console.error(
-"Login Error:",
-error
-);
-
-
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-
-}
-
-
-
+        emailVerified:
+          false,
+
+        phoneVerified:
+          false,
+
+        // Public employee applications require admin approval.
+        status: role === "employee" ? "inactive" : "active",
+
+        authProvider:
+          "local",
+      });
+
+
+    // ========================================
+    // STUDENT PROFILE
+    // ========================================
+
+    if (
+      role === "student"
+    ) {
+      await StudentProfile.create({
+        user:
+          user._id,
+
+        degree:
+          "B.Tech",
+
+        country:
+          "India",
+
+        profileCompleted:
+          5,
+      });
+    }
+
+
+    // ========================================
+    // RECRUITER PROFILE
+    // ========================================
+
+    if (
+      role === "recruiter"
+    ) {
+      await RecruiterProfile.create({
+        user: user._id,
+        companyName: String(companyName || "").trim(),
+        website: String(website || "").trim(),
+        industry: String(industry || "").trim(),
+        headquarters: [city, state]
+          .map((value) => String(value || "").trim())
+          .filter(Boolean)
+          .join(", "),
+        phone: String(phone || "").trim(),
+        email: normalizedEmail,
+        hrName: name.trim(),
+        hrDesignation: String(designation || "").trim(),
+        profileCompleted: 20,
+      });
+    }
+
+
+    // ========================================
+    // EMPLOYEE PROFILE
+    // ========================================
+
+    if (
+      role === "employee"
+    ) {
+      await EmployeeProfile.create({
+        user: user._id,
+        designation: String(designation || "").trim(),
+        department: String(department || "").trim(),
+        phone: String(phone || "").trim(),
+        officeEmail: normalizedEmail,
+        isActive: false,
+        profileCompleted: 10,
+      });
+    }
+
+
+    // ========================================
+    // AMBASSADOR PROFILE
+    // ========================================
+
+    if (
+      role === "ambassador"
+    ) {
+      const ambassadorReferralCode =
+        "SKIL" +
+        user._id
+          .toString()
+          .slice(-6)
+          .toUpperCase();
+
+
+      await AmbassadorProfile.create({
+        user: user._id,
+        referralCode: ambassadorReferralCode,
+        college: String(college || "").trim(),
+        university: String(university || "").trim(),
+        phone: String(phone || "").trim(),
+        city: String(city || "").trim(),
+        state: String(state || "").trim(),
+        course: String(course || "").trim(),
+        branch: String(branch || "").trim(),
+        semester: String(semester || "").trim(),
+        graduationYear: String(graduationYear || "").trim(),
+        totalReferrals: 0,
+        successfulReferrals: 0,
+        rewardPoints: 0,
+        rank: 0,
+        profileCompleted: 20,
+      });
+
+
+      user.referralCode =
+        ambassadorReferralCode;
+
+
+      await user.save();
+    }
+
+
+    // ========================================
+    // RESPONSE
+    // ========================================
+
+    return res.status(201).json({
+      success: true,
+
+      message:
+        role === "recruiter" ||
+        role === "ambassador" ||
+        role === "employee"
+          ? `${role} registered successfully. Waiting for approval.`
+          : "Registration successful.",
+
+      user: {
+        id:
+          user._id,
+
+        name:
+          user.name,
+
+        email:
+          user.email,
+
+        role:
+          user.role,
+
+        referredBy:
+          user.referredBy ||
+          null,
+      },
+    });
+
+  } catch (error) {
+    console.error(
+      "Register Error:",
+      error
+    );
+
+
+    return res.status(500).json({
+      success: false,
+
+      message:
+        error.message ||
+        "Registration failed.",
+    });
+  }
 };
+
+
 // ========================================
-// Forgot Password
+// LOGIN
+// ========================================
+
+export const login = async (
+  req,
+  res
+) => {
+  try {
+    const {
+      email,
+      password,
+    } = req.body;
+
+
+    if (
+      !email ||
+      !password
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Email and password are required.",
+      });
+    }
+
+
+    const user =
+      await User.findOne({
+        email:
+          email
+            .trim()
+            .toLowerCase(),
+      });
+
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "User not found.",
+      });
+    }
+
+
+    if (
+      user.isDeleted ||
+      ["blocked", "deleted", "inactive"].includes(
+        String(user.status || "").toLowerCase()
+      )
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "This account is inactive or has been disabled.",
+      });
+    }
+
+    // ========================================
+    // RECRUITER APPROVAL
+    // ========================================
+
+    if (
+      user.role === "recruiter" &&
+      !user.recruiterApproved
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Recruiter account under review.",
+      });
+    }
+
+
+    // ========================================
+    // AMBASSADOR APPROVAL
+    // ========================================
+
+    if (
+      user.role === "ambassador" &&
+      !user.ambassadorApproved
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Ambassador account under review.",
+      });
+    }
+
+
+    // ========================================
+    // PASSWORD
+    // ========================================
+
+    if (!user.password) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Password login is not available for this account.",
+      });
+    }
+
+
+    const matched =
+      await bcrypt.compare(
+        password,
+        user.password
+      );
+
+
+    if (!matched) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Invalid email or password.",
+      });
+    }
+
+
+    // ========================================
+    // JWT
+    // ========================================
+
+    const token =
+      jwt.sign(
+        {
+          id:
+            user._id,
+
+          role:
+            user.role,
+        },
+
+        process.env.JWT_SECRET,
+
+        {
+          expiresIn:
+            "7d",
+        }
+      );
+
+
+    // ========================================
+    // ACTIVITY
+    // ========================================
+
+    user.lastLogin =
+      new Date();
+
+    user.lastActive =
+      new Date();
+
+    user.refreshToken =
+      token;
+
+
+    await user.save();
+
+    if (user.role === "employee") {
+      try {
+        await ActivityLog.create({
+          actor: user._id,
+          actorRole: "employee",
+          action: "LOGIN_SUCCESS",
+          method: "POST",
+          path: "/api/auth/login",
+          statusCode: 200,
+          success: true,
+          ip: String(req.ip || "").slice(0, 100),
+          userAgent: String(
+            req.headers["user-agent"] || ""
+          ).slice(0, 500),
+        });
+      } catch (activityError) {
+        console.error(
+          "EMPLOYEE LOGIN ACTIVITY LOG ERROR:",
+          activityError.message
+        );
+      }
+    }
+
+
+
+    // ========================================
+    // RESPONSE
+    // ========================================
+
+    return res.status(200).json({
+      success: true,
+
+      message:
+        "Login successful.",
+
+      token,
+
+      user: {
+        id:
+          user._id,
+
+        name:
+          user.name,
+
+        email:
+          user.email,
+
+        role:
+          user.role,
+
+        referralCode:
+          user.referralCode ||
+          null,
+      },
+    });
+
+  } catch (error) {
+    console.error(
+      "Login Error:",
+      error
+    );
+
+
+    return res.status(500).json({
+      success: false,
+
+      message:
+        error.message ||
+        "Login failed.",
+    });
+  }
+};
+
+
+// ========================================
+// FORGOT PASSWORD
 // ========================================
 
 export const forgotPassword = async (
-req,
-res
-)=>{
+  req,
+  res
+) => {
+  try {
+    const {
+      email,
+    } = req.body;
 
 
-try{
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Email is required.",
+      });
+    }
 
 
-const {email}=req.body;
+    const user =
+      await User.findOne({
+        email:
+          email
+            .trim()
+            .toLowerCase(),
+      });
 
 
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "User not found.",
+      });
+    }
 
-if(!email){
 
+    const resetToken =
+      crypto
+        .randomBytes(32)
+        .toString("hex");
 
-return res.status(400).json({
 
-success:false,
+    user.resetPasswordToken =
+      crypto
+        .createHash("sha256")
+        .update(resetToken)
+        .digest("hex");
 
-message:"Email is required."
 
-});
+    user.resetPasswordExpire =
+      Date.now() +
+      15 * 60 * 1000;
 
 
-}
+    await user.save();
 
 
+    const frontendUrl =
+      process.env.CLIENT_URL ||
+      "http://localhost:5173";
 
 
+    const resetURL =
+      `${frontendUrl}/reset-password/${resetToken}`;
 
 
-const user =
-await User.findOne({
+    return res.status(200).json({
+      success: true,
 
-email:
-email.toLowerCase(),
+      message:
+        "Password reset link generated.",
 
-});
+      resetURL,
+    });
 
+  } catch (error) {
+    console.error(
+      "Forgot Password Error:",
+      error
+    );
 
 
+    return res.status(500).json({
+      success: false,
 
-
-
-
-if(!user){
-
-
-return res.status(404).json({
-
-success:false,
-
-message:"User not found."
-
-});
-
-
-}
-
-
-
-
-
-
-
-
-const resetToken =
-crypto
-.randomBytes(32)
-.toString("hex");
-
-
-
-
-
-
-
-user.resetPasswordToken =
-
-crypto
-.createHash("sha256")
-.update(resetToken)
-.digest("hex");
-
-
-
-
-
-
-user.resetPasswordExpire =
-
-Date.now() + 
-15 * 60 * 1000;
-
-
-
-
-
-
-await user.save();
-
-
-
-
-
-
-
-
-const resetURL =
-
-`http://localhost:5173/reset-password/${resetToken}`;
-
-
-
-
-
-
-
-res.status(200).json({
-
-success:true,
-
-message:
-"Password reset link generated.",
-
-
-resetURL,
-
-
-});
-
-
-
-
-
-
-}catch(error){
-
-
-console.error(
-"Forgot Password Error:",
-error
-);
-
-
-
-res.status(500).json({
-
-success:false,
-
-message:error.message,
-
-});
-
-
-}
-
-
+      message:
+        error.message ||
+        "Failed to generate reset link.",
+    });
+  }
 };
 
 
-
-
-
-
-
-
-
-
-
 // ========================================
-// Reset Password
+// RESET PASSWORD
 // ========================================
 
+export const resetPassword = async (
+  req,
+  res
+) => {
+  try {
+    const hashedToken =
+      crypto
+        .createHash("sha256")
+        .update(
+          req.params.token
+        )
+        .digest("hex");
 
-export const resetPassword = async(
-req,
-res
-)=>{
 
+    const user =
+      await User.findOne({
+        resetPasswordToken:
+          hashedToken,
 
-try{
+        resetPasswordExpire: {
+          $gt:
+            Date.now(),
+        },
+      });
 
 
-const hashedToken =
+    if (!user) {
+      return res.status(400).json({
+        success: false,
 
-crypto
-.createHash("sha256")
-.update(req.params.token)
-.digest("hex");
+        message:
+          "Invalid or expired token.",
+      });
+    }
 
 
+    const {
+      password,
+    } = req.body;
 
 
+    if (!password) {
+      return res.status(400).json({
+        success: false,
 
+        message:
+          "Password required.",
+      });
+    }
 
-const user =
 
-await User.findOne({
+    user.password =
+      await bcrypt.hash(
+        password,
+        10
+      );
 
-resetPasswordToken:
-hashedToken,
 
+    user.resetPasswordToken =
+      undefined;
 
-resetPasswordExpire:{
-$gt:Date.now(),
+    user.resetPasswordExpire =
+      undefined;
 
-},
 
+    await user.save();
 
-});
 
+    return res.status(200).json({
+      success: true,
 
+      message:
+        "Password reset successful.",
+    });
 
+  } catch (error) {
+    console.error(
+      "Reset Password Error:",
+      error
+    );
 
 
+    return res.status(500).json({
+      success: false,
 
-
-if(!user){
-
-
-return res.status(400).json({
-
-success:false,
-
-message:
-"Invalid or expired token."
-
-});
-
-
-}
-
-
-
-
-
-
-
-const {
-password
-}=req.body;
-
-
-
-
-
-
-if(!password){
-
-
-return res.status(400).json({
-
-success:false,
-
-message:
-"Password required."
-
-});
-
-
-}
-
-
-
-
-
-
-
-user.password =
-
-await bcrypt.hash(
-password,
-10
-);
-
-
-
-
-
-
-user.resetPasswordToken =
-undefined;
-
-
-
-user.resetPasswordExpire =
-undefined;
-
-
-
-
-
-
-
-await user.save();
-
-
-
-
-
-
-
-res.status(200).json({
-
-success:true,
-
-message:
-"Password reset successful."
-
-});
-
-
-
-
-
-}catch(error){
-
-
-console.error(
-"Reset Password Error:",
-error
-);
-
-
-
-res.status(500).json({
-
-success:false,
-
-message:error.message
-
-});
-
-
-}
-
-
-
+      message:
+        error.message ||
+        "Failed to reset password.",
+    });
+  }
 };

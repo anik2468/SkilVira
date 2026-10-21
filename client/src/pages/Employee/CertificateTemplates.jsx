@@ -1,5 +1,7 @@
+import { API_ORIGIN, API_URL } from "../../services/urlConfig.js";
 import React, {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -12,15 +14,23 @@ import {
   FiMapPin,
   FiMaximize,
   FiCheckCircle,
+  FiEye,
+  FiX,
 } from "react-icons/fi";
 
 import api from "../../services/api";
+
+const API_BASE =
+  import.meta.env.VITE_API_URL?.replace(
+    /\/api\/?$/,
+    ""
+  ) || API_ORIGIN;
 
 // =====================================================
 // DEFAULT FIELDS
 // =====================================================
 
-const defaultFields = {
+const DEFAULT_FIELDS = {
   studentName: true,
   courseName: true,
   marks: false,
@@ -38,7 +48,7 @@ const defaultFields = {
 // DEFAULT POSITIONS
 // =====================================================
 
-const defaultPositions = {
+const DEFAULT_POSITIONS = {
   studentName: {
     x: 0,
     y: 0,
@@ -98,47 +108,62 @@ const defaultPositions = {
 };
 
 // =====================================================
+// EMPTY FORM
+// =====================================================
+
+const createEmptyForm = () => ({
+  name: "",
+  category: "certificate",
+  type: "course",
+  courseId: "",
+
+  requiresApproval: true,
+
+  fields: {
+    ...DEFAULT_FIELDS,
+  },
+
+  positions: {
+    ...DEFAULT_POSITIONS,
+
+    qrCode: {
+      ...DEFAULT_POSITIONS.qrCode,
+    },
+  },
+
+  file: null,
+});
+
+// =====================================================
 // COMPONENT
 // =====================================================
 
 const CertificateTemplates = () => {
-  const [templates, setTemplates] =
-    useState([]);
-
-  const [courses, setCourses] =
-    useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [courses, setCourses] = useState([]);
 
   const [editingId, setEditingId] =
     useState(null);
 
-  const [form, setForm] =
-    useState({
-      name: "",
-      category: "certificate",
-      type: "course",
-      courseId: "",
-      requiresApproval: true,
-      fields: {
-        ...defaultFields,
-      },
-      positions: {
-        ...defaultPositions,
-        qrCode: {
-          ...defaultPositions.qrCode,
-        },
-      },
-      file: null,
-    });
+  const [form, setForm] = useState(
+    createEmptyForm()
+  );
 
   const [loading, setLoading] =
     useState(false);
 
   const [fetching, setFetching] =
-    useState(false);
+    useState(true);
 
-  // ===================================================
+  const [previewTemplate, setPreviewTemplate] =
+    useState(null);
+
+  const [search, setSearch] =
+    useState("");
+
+  // =====================================================
   // FETCH
-  // ===================================================
+  // =====================================================
 
   const fetchData = async () => {
     try {
@@ -148,15 +173,12 @@ const CertificateTemplates = () => {
         templateRes,
         courseRes,
       ] = await Promise.all([
-        api.get(
-          "/certificate-templates"
-        ),
+        api.get("/certificate-templates"),
         api.get("/courses"),
       ]);
 
       setTemplates(
-        templateRes?.data?.templates ||
-          []
+        templateRes?.data?.templates || []
       );
 
       setCourses(
@@ -183,39 +205,31 @@ const CertificateTemplates = () => {
     fetchData();
   }, []);
 
-  // ===================================================
+  // =====================================================
   // RESET
-  // ===================================================
+  // =====================================================
 
   const resetForm = () => {
-    setForm({
-      name: "",
-      category: "certificate",
-      type: "course",
-      courseId: "",
-      requiresApproval: true,
-
-      fields: {
-        ...defaultFields,
-      },
-
-      positions: {
-        ...defaultPositions,
-
-        qrCode: {
-          ...defaultPositions.qrCode,
-        },
-      },
-
-      file: null,
-    });
-
+    setForm(createEmptyForm());
     setEditingId(null);
   };
 
-  // ===================================================
+  // =====================================================
+  // START CREATE
+  // =====================================================
+
+  const startCreate = () => {
+    resetForm();
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  // =====================================================
   // SUBMIT
-  // ===================================================
+  // =====================================================
 
   const submit = async (event) => {
     event.preventDefault();
@@ -242,6 +256,39 @@ const CertificateTemplates = () => {
       return;
     }
 
+    const enabledFieldsCount =
+      Object.values(form.fields).filter(
+        Boolean
+      ).length;
+
+    if (enabledFieldsCount === 0) {
+      alert(
+        "Please enable at least one dynamic field."
+      );
+      return;
+    }
+
+    if (
+      form.fields.qrCode &&
+      (!isValidNumber(
+        form.positions.qrCode.x
+      ) ||
+        !isValidNumber(
+          form.positions.qrCode.y
+        ) ||
+        !isValidNumber(
+          form.positions.qrCode.width
+        ) ||
+        !isValidNumber(
+          form.positions.qrCode.height
+        ))
+    ) {
+      alert(
+        "Please enter valid QR position and size values."
+      );
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -263,10 +310,12 @@ const CertificateTemplates = () => {
         form.type
       );
 
-      formData.append(
-        "courseId",
-        form.courseId
-      );
+      if (form.courseId) {
+        formData.append(
+          "courseId",
+          form.courseId
+        );
+      }
 
       formData.append(
         "requiresApproval",
@@ -299,21 +348,36 @@ const CertificateTemplates = () => {
       if (editingId) {
         await api.put(
           `/certificate-templates/${editingId}`,
-          formData
+          formData,
+          {
+            headers: {
+              "Content-Type":
+                "multipart/form-data",
+            },
+          }
         );
       } else {
         await api.post(
           "/certificate-templates",
-          formData
+          formData,
+          {
+            headers: {
+              "Content-Type":
+                "multipart/form-data",
+            },
+          }
         );
       }
+
+      const wasEditing =
+        Boolean(editingId);
 
       resetForm();
 
       await fetchData();
 
       alert(
-        editingId
+        wasEditing
           ? "Certificate template updated successfully."
           : "Certificate template saved successfully."
       );
@@ -325,6 +389,7 @@ const CertificateTemplates = () => {
 
       alert(
         error?.response?.data?.message ||
+          error?.message ||
           "Failed to save certificate template."
       );
     } finally {
@@ -332,31 +397,28 @@ const CertificateTemplates = () => {
     }
   };
 
-  // ===================================================
+  // =====================================================
   // EDIT TEMPLATE
-  // ===================================================
+  // =====================================================
 
-  const editTemplate = (
-    template
-  ) => {
+  const editTemplate = (template) => {
     const templatePositions = {
-      ...defaultPositions,
+      ...DEFAULT_POSITIONS,
       ...(template?.positions || {}),
+
       qrCode: {
-        ...defaultPositions.qrCode,
+        ...DEFAULT_POSITIONS.qrCode,
         ...(template?.positions?.qrCode ||
           {}),
       },
     };
 
     setEditingId(
-      template._id
+      template?._id || null
     );
 
     setForm({
-      name:
-        template?.name ||
-        "",
+      name: template?.name || "",
 
       category:
         template?.category ||
@@ -376,9 +438,8 @@ const CertificateTemplates = () => {
         false,
 
       fields: {
-        ...defaultFields,
-        ...(template?.fields ||
-          {}),
+        ...DEFAULT_FIELDS,
+        ...(template?.fields || {}),
       },
 
       positions:
@@ -393,13 +454,11 @@ const CertificateTemplates = () => {
     });
   };
 
-  // ===================================================
-  // DELETE
-  // ===================================================
+  // =====================================================
+  // DELETE / DEACTIVATE
+  // =====================================================
 
-  const deleteTemplate = async (
-    id
-  ) => {
+  const deleteTemplate = async (id) => {
     const confirmed =
       window.confirm(
         "Deactivate this certificate template?"
@@ -410,11 +469,21 @@ const CertificateTemplates = () => {
     }
 
     try {
+      setLoading(true);
+
       await api.delete(
         `/certificate-templates/${id}`
       );
 
+      if (editingId === id) {
+        resetForm();
+      }
+
       await fetchData();
+
+      alert(
+        "Certificate template deactivated successfully."
+      );
     } catch (error) {
       console.error(
         "Delete template error:",
@@ -425,31 +494,31 @@ const CertificateTemplates = () => {
         error?.response?.data?.message ||
           "Failed to deactivate template."
       );
+    } finally {
+      setLoading(false);
     }
   };
 
-  // ===================================================
+  // =====================================================
   // FIELD TOGGLE
-  // ===================================================
+  // =====================================================
 
-  const toggleField = (
-    key
-  ) => {
-    setForm((prev) => ({
-      ...prev,
+  const toggleField = (key) => {
+    setForm((previous) => ({
+      ...previous,
 
       fields: {
-        ...prev.fields,
+        ...previous.fields,
 
         [key]:
-          !prev.fields[key],
+          !previous.fields[key],
       },
     }));
   };
 
-  // ===================================================
+  // =====================================================
   // POSITION CHANGE
-  // ===================================================
+  // =====================================================
 
   const handlePositionChange = (
     key,
@@ -461,14 +530,14 @@ const CertificateTemplates = () => {
         ? ""
         : Number(value);
 
-    setForm((prev) => ({
-      ...prev,
+    setForm((previous) => ({
+      ...previous,
 
       positions: {
-        ...prev.positions,
+        ...previous.positions,
 
         [key]: {
-          ...prev.positions[key],
+          ...previous.positions[key],
 
           [field]:
             numericValue,
@@ -477,9 +546,9 @@ const CertificateTemplates = () => {
     }));
   };
 
-  // ===================================================
+  // =====================================================
   // QR CHANGE
-  // ===================================================
+  // =====================================================
 
   const handleQRChange = (
     field,
@@ -490,14 +559,14 @@ const CertificateTemplates = () => {
         ? ""
         : Number(value);
 
-    setForm((prev) => ({
-      ...prev,
+    setForm((previous) => ({
+      ...previous,
 
       positions: {
-        ...prev.positions,
+        ...previous.positions,
 
         qrCode: {
-          ...prev.positions.qrCode,
+          ...previous.positions.qrCode,
 
           [field]:
             numericValue,
@@ -506,9 +575,173 @@ const CertificateTemplates = () => {
     }));
   };
 
-  // ===================================================
+  // =====================================================
+  // FILE CHANGE
+  // =====================================================
+
+  const handleFileChange = (event) => {
+    const selected =
+      event.target.files?.[0] ||
+      null;
+
+    if (!selected) {
+      setForm((previous) => ({
+        ...previous,
+        file: null,
+      }));
+
+      return;
+    }
+
+    const allowedTypes = [
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/webp",
+    ];
+
+    if (
+      selected.type &&
+      !allowedTypes.includes(
+        selected.type
+      )
+    ) {
+      alert(
+        "Only PDF, PNG, JPG, JPEG and WEBP files are allowed."
+      );
+
+      event.target.value = "";
+
+      return;
+    }
+
+    const maxSize =
+      15 * 1024 * 1024;
+
+    if (selected.size > maxSize) {
+      alert(
+        "Template file must be 15 MB or smaller."
+      );
+
+      event.target.value = "";
+
+      return;
+    }
+
+    setForm((previous) => ({
+      ...previous,
+      file: selected,
+    }));
+  };
+
+  // =====================================================
+  // FILE URL
+  // =====================================================
+
+  const getFileUrl = (file) => {
+    if (!file) {
+      return "";
+    }
+
+    let value = file;
+
+    if (
+      typeof file === "object"
+    ) {
+      value =
+        file?.url ||
+        file?.path ||
+        file?.location ||
+        file?.secure_url ||
+        "";
+    }
+
+    if (!value) {
+      return "";
+    }
+
+    if (
+      value.startsWith(
+        "http://"
+      ) ||
+      value.startsWith(
+        "https://"
+      )
+    ) {
+      return value;
+    }
+
+    return `${API_BASE}${
+      value.startsWith("/")
+        ? ""
+        : "/"
+    }${value}`;
+  };
+
+  // =====================================================
+  // SEARCH
+  // =====================================================
+
+  const filteredTemplates = useMemo(() => {
+    const keyword =
+      search.trim().toLowerCase();
+
+    if (!keyword) {
+      return templates;
+    }
+
+    return templates.filter(
+      (template) => {
+        const name =
+          template?.name || "";
+
+        const type =
+          template?.type || "";
+
+        const courseName =
+          template?.courseId?.title ||
+          "";
+
+        const category =
+          template?.category || "";
+
+        const searchable = [
+          name,
+          type,
+          courseName,
+          category,
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        return searchable.includes(
+          keyword
+        );
+      }
+    );
+  }, [templates, search]);
+
+  // =====================================================
+  // FILE TYPE
+  // =====================================================
+
+  const isPdf = (file) => {
+    const value =
+      typeof file === "string"
+        ? file
+        : file?.url ||
+          file?.path ||
+          "";
+
+    return /\.pdf(\?.*)?$/i.test(
+      value || ""
+    );
+  };
+
+  // =====================================================
   // FIELD LABELS
-  // ===================================================
+  // =====================================================
 
   const fieldLabels = {
     studentName: "Student Name",
@@ -525,53 +758,77 @@ const CertificateTemplates = () => {
     qrCode: "QR Code",
   };
 
-  // ===================================================
+  // =====================================================
+  // TYPE LABEL
+  // =====================================================
+
+  const typeLabels = {
+    course: "Course",
+    internship: "Internship",
+    achievement: "Achievement",
+  };
+
+  // =====================================================
   // RENDER
-  // ===================================================
+  // =====================================================
 
   return (
     <div className="min-h-screen bg-white px-5 py-8 text-gray-900 md:px-8">
       <div className="mx-auto max-w-7xl">
-
-        {/* HEADER */}
+        {/* =================================================
+            HEADER
+        ================================================== */}
 
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#D4AF37]/10 px-3 py-1.5 text-xs font-bold text-[#9A7810]">
-              <FiFileText
-                size={13}
-              />
+              <FiFileText size={13} />
+
               Certificate Operations
             </div>
 
-            <h1 className="text-3xl font-bold">
+            <h1 className="text-3xl font-black text-slate-900">
               Certificate Templates
             </h1>
 
-            <p className="mt-2 max-w-2xl text-gray-500">
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-500">
               Upload certificate templates and configure
               dynamic fields, QR placement and QR size for
-              each template.
+              each individual template.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={fetchData}
-            disabled={fetching}
-            className="inline-flex w-fit items-center gap-2 rounded-xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
-          >
-            <FiRefreshCw
-              size={16}
-              className={
-                fetching
-                  ? "animate-spin"
-                  : ""
-              }
-            />
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={fetchData}
+              disabled={fetching}
+              className="inline-flex w-fit items-center gap-2 rounded-xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+            >
+              <FiRefreshCw
+                size={16}
+                className={
+                  fetching
+                    ? "animate-spin"
+                    : ""
+                }
+              />
 
-            Refresh
-          </button>
+              Refresh
+            </button>
+
+            {!editingId && (
+              <button
+                type="button"
+                onClick={startCreate}
+                className="inline-flex w-fit items-center gap-2 rounded-xl bg-[#D4AF37] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#c29f32]"
+              >
+                <FiUpload size={16} />
+
+                Add Template
+              </button>
+            )}
+          </div>
         </div>
 
         {/* =================================================
@@ -583,7 +840,7 @@ const CertificateTemplates = () => {
           className="mb-10 overflow-hidden rounded-3xl border border-[#D4AF37]/30 bg-[#D4AF37]/5"
         >
           <div className="border-b border-[#D4AF37]/20 px-6 py-5">
-            <h2 className="text-xl font-bold">
+            <h2 className="text-xl font-black text-slate-900">
               {editingId
                 ? "Edit Certificate Template"
                 : "Add Certificate Template"}
@@ -596,49 +853,43 @@ const CertificateTemplates = () => {
           </div>
 
           <div className="p-6">
-
             {/* BASIC */}
-
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-
+              {/* NAME */}
               <div>
                 <label className="mb-2 block text-sm font-semibold">
                   Template Name
                 </label>
 
                 <input
-                  value={
-                    form.name
-                  }
+                  value={form.name}
                   onChange={(event) =>
-                    setForm({
-                      ...form,
-                      name:
-                        event.target.value,
-                    })
+                    setForm((previous) => ({
+                      ...previous,
+                      name: event.target
+                        .value,
+                    }))
                   }
                   className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/10"
                   placeholder="Course Completion Certificate"
                 />
               </div>
 
+              {/* TYPE */}
               <div>
                 <label className="mb-2 block text-sm font-semibold">
                   Type
                 </label>
 
                 <select
-                  value={
-                    form.type
-                  }
+                  value={form.type}
                   onChange={(event) =>
-                    setForm({
-                      ...form,
-                      type:
-                        event.target.value,
-                      courseId:
-                        "",
-                    })
+                    setForm((previous) => ({
+                      ...previous,
+                      type: event.target
+                        .value,
+                      courseId: "",
+                    }))
                   }
                   className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-[#D4AF37]"
                 >
@@ -656,23 +907,22 @@ const CertificateTemplates = () => {
                 </select>
               </div>
 
-              {form.type ===
-                "course" && (
+              {/* COURSE */}
+              {form.type === "course" && (
                 <div>
                   <label className="mb-2 block text-sm font-semibold">
                     Course
                   </label>
 
                   <select
-                    value={
-                      form.courseId
-                    }
+                    value={form.courseId}
                     onChange={(event) =>
-                      setForm({
-                        ...form,
+                      setForm((previous) => ({
+                        ...previous,
                         courseId:
-                          event.target.value,
-                      })
+                          event.target
+                            .value,
+                      }))
                     }
                     className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-[#D4AF37]"
                   >
@@ -683,16 +933,12 @@ const CertificateTemplates = () => {
                     {courses.map(
                       (course) => (
                         <option
-                          key={
-                            course._id
-                          }
+                          key={course._id}
                           value={
                             course._id
                           }
                         >
-                          {
-                            course.title
-                          }
+                          {course.title}
                         </option>
                       )
                     )}
@@ -700,48 +946,86 @@ const CertificateTemplates = () => {
                 </div>
               )}
 
+              {/* CATEGORY */}
               <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Category
+                </label>
+
+                <select
+                  value={form.category}
+                  onChange={(event) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      category:
+                        event.target
+                          .value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-[#D4AF37]"
+                >
+                  <option value="certificate">
+                    Certificate
+                  </option>
+
+                  <option value="report">
+                    Report
+                  </option>
+                </select>
+              </div>
+
+              {/* FILE */}
+              <div className="lg:col-span-2">
                 <label className="mb-2 block text-sm font-semibold">
                   Template File
                 </label>
 
-                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[#D4AF37]/60 bg-white px-4 py-3">
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[#D4AF37]/60 bg-white px-4 py-3 transition hover:bg-[#D4AF37]/5">
                   <FiUpload className="shrink-0 text-[#D4AF37]" />
 
-                  <span className="truncate text-sm text-gray-600">
-                    {form.file
-                      ? form.file.name
-                      : editingId
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-gray-700">
+                      {form.file
+                        ? form.file.name
+                        : editingId
                         ? "Upload new file (optional)"
                         : "Upload PDF / Image"}
-                  </span>
+                    </p>
+
+                    <p className="mt-0.5 text-xs text-gray-400">
+                      PDF, PNG, JPG, JPEG or WEBP
+                      • Max 15 MB
+                    </p>
+                  </div>
 
                   <input
                     type="file"
                     accept=".pdf,.png,.jpg,.jpeg,.webp"
                     className="hidden"
-                    onChange={(
-                      event
-                    ) =>
-                      setForm({
-                        ...form,
-                        file:
-                          event
-                            .target
-                            .files?.[0] ||
-                          null,
-                      })
+                    onChange={
+                      handleFileChange
                     }
                   />
                 </label>
+
+                {editingId &&
+                  !form.file &&
+                  getTemplateFileForEdit(
+                    templates,
+                    editingId
+                  ) && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Existing template will be retained
+                      unless a new file is selected.
+                    </p>
+                  )}
               </div>
             </div>
 
             {/* DYNAMIC FIELDS */}
-
             <div className="mt-8 rounded-2xl border border-gray-200 bg-white p-5">
               <div className="mb-4">
-                <h3 className="font-bold text-gray-900">
+                <h3 className="font-black text-gray-900">
                   Dynamic Fields
                 </h3>
 
@@ -754,42 +1038,42 @@ const CertificateTemplates = () => {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {Object.keys(
                   fieldLabels
-                ).map((key) => (
-                  <label
-                    key={key}
-                    className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 transition hover:border-[#D4AF37]/40"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={
-                        !!form.fields[
-                          key
-                        ]
-                      }
-                      onChange={() =>
-                        toggleField(
-                          key
-                        )
-                      }
-                      className="accent-[#D4AF37]"
-                    />
+                ).map((key) => {
+                  const enabled =
+                    !!form.fields[key];
 
-                    <span className="text-sm font-medium">
-                      {
-                        fieldLabels[
-                          key
-                        ]
-                      }
-                    </span>
-                  </label>
-                ))}
+                  return (
+                    <label
+                      key={key}
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 transition ${
+                        enabled
+                          ? "border-[#D4AF37] bg-[#FFF8E7]"
+                          : "border-gray-200 bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={
+                          enabled
+                        }
+                        onChange={() =>
+                          toggleField(
+                            key
+                          )
+                        }
+                        className="accent-[#D4AF37]"
+                      />
+
+                      <span className="text-sm font-medium">
+                        {fieldLabels[key]}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
-            {/* =================================================
-                QR CONFIGURATION
-            ================================================== */}
-
+            {/* QR CONFIGURATION */}
             <div className="mt-6 rounded-2xl border border-[#D4AF37]/30 bg-white p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -799,7 +1083,7 @@ const CertificateTemplates = () => {
                       size={19}
                     />
 
-                    <h3 className="font-bold text-gray-900">
+                    <h3 className="font-black text-gray-900">
                       QR Code Configuration
                     </h3>
                   </div>
@@ -816,8 +1100,7 @@ const CertificateTemplates = () => {
                   <input
                     type="checkbox"
                     checked={
-                      !!form.fields
-                        .qrCode
+                      !!form.fields.qrCode
                     }
                     onChange={() =>
                       toggleField(
@@ -832,159 +1115,167 @@ const CertificateTemplates = () => {
               </div>
 
               {form.fields.qrCode && (
-                <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <>
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <QRInput
+                      label="X Position"
+                      icon={
+                        <FiMapPin
+                          size={15}
+                        />
+                      }
+                      value={
+                        form.positions
+                          .qrCode.x
+                      }
+                      onChange={(value) =>
+                        handleQRChange(
+                          "x",
+                          value
+                        )
+                      }
+                      placeholder="820"
+                    />
 
-                  <QRInput
-                    label="X Position"
-                    icon={
-                      <FiMapPin
-                        size={15}
-                      />
-                    }
-                    value={
-                      form.positions
-                        .qrCode
-                        .x
-                    }
-                    onChange={(value) =>
-                      handleQRChange(
-                        "x",
-                        value
-                      )
-                    }
-                    placeholder="820"
-                  />
+                    <QRInput
+                      label="Y Position"
+                      icon={
+                        <FiMapPin
+                          size={15}
+                        />
+                      }
+                      value={
+                        form.positions
+                          .qrCode.y
+                      }
+                      onChange={(value) =>
+                        handleQRChange(
+                          "y",
+                          value
+                        )
+                      }
+                      placeholder="520"
+                    />
 
-                  <QRInput
-                    label="Y Position"
-                    icon={
-                      <FiMapPin
-                        size={15}
-                      />
-                    }
-                    value={
-                      form.positions
-                        .qrCode
-                        .y
-                    }
-                    onChange={(value) =>
-                      handleQRChange(
-                        "y",
-                        value
-                      )
-                    }
-                    placeholder="520"
-                  />
+                    <QRInput
+                      label="Width"
+                      icon={
+                        <FiMaximize
+                          size={15}
+                        />
+                      }
+                      value={
+                        form.positions
+                          .qrCode
+                          .width
+                      }
+                      onChange={(value) =>
+                        handleQRChange(
+                          "width",
+                          value
+                        )
+                      }
+                      placeholder="120"
+                    />
 
-                  <QRInput
-                    label="Width"
-                    icon={
-                      <FiMaximize
-                        size={15}
-                      />
-                    }
-                    value={
-                      form.positions
-                        .qrCode
-                        .width
-                    }
-                    onChange={(value) =>
-                      handleQRChange(
-                        "width",
-                        value
-                      )
-                    }
-                    placeholder="120"
-                  />
-
-                  <QRInput
-                    label="Height"
-                    icon={
-                      <FiMaximize
-                        size={15}
-                      />
-                    }
-                    value={
-                      form.positions
-                        .qrCode
-                        .height
-                    }
-                    onChange={(value) =>
-                      handleQRChange(
-                        "height",
-                        value
-                      )
-                    }
-                    placeholder="120"
-                  />
-                </div>
-              )}
-
-              {form.fields.qrCode && (
-                <div className="mt-5 flex items-start gap-3 rounded-xl bg-gray-50 p-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-white text-[10px] font-bold text-gray-400">
-                    QR
+                    <QRInput
+                      label="Height"
+                      icon={
+                        <FiMaximize
+                          size={15}
+                        />
+                      }
+                      value={
+                        form.positions
+                          .qrCode
+                          .height
+                      }
+                      onChange={(value) =>
+                        handleQRChange(
+                          "height",
+                          value
+                        )
+                      }
+                      placeholder="120"
+                    />
                   </div>
 
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">
-                      QR placement saved per template
-                    </p>
+                  <div className="mt-5 flex items-start gap-3 rounded-xl bg-gray-50 p-4">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-white text-[10px] font-bold text-gray-400">
+                      QR
+                    </div>
 
-                    <p className="mt-1 text-xs leading-5 text-gray-500">
-                      X:{" "}
-                      {form.positions
-                        .qrCode.x ||
-                        0}
-                      {"  "}
-                      Y:{" "}
-                      {form.positions
-                        .qrCode.y ||
-                        0}
-                      {"  "}
-                      Width:{" "}
-                      {form.positions
-                        .qrCode.width ||
-                        120}
-                      {"  "}
-                      Height:{" "}
-                      {form.positions
-                        .qrCode.height ||
-                        120}
-                    </p>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">
+                        QR placement saved per template
+                      </p>
 
-                    <p className="mt-1 text-xs text-gray-400">
-                      Actual QR will be generated automatically
-                      from the certificate verification URL.
-                    </p>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">
+                        X:{" "}
+                        {form.positions
+                          .qrCode.x ||
+                          0}
+                        {"  "}
+                        Y:{" "}
+                        {form.positions
+                          .qrCode.y ||
+                          0}
+                        {"  "}
+                        Width:{" "}
+                        {form.positions
+                          .qrCode
+                          .width ||
+                          120}
+                        {"  "}
+                        Height:{" "}
+                        {form.positions
+                          .qrCode
+                          .height ||
+                          120}
+                      </p>
+
+                      <p className="mt-1 text-xs text-gray-400">
+                        The website will generate the QR
+                        automatically using the public
+                        certificate verification URL.
+                      </p>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
 
             {/* APPROVAL */}
-
-            <label className="mt-6 flex cursor-pointer items-center gap-2 text-sm font-semibold text-gray-700">
+            <label className="mt-6 flex cursor-pointer items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">
               <input
                 type="checkbox"
                 checked={
                   form.requiresApproval
                 }
                 onChange={(event) =>
-                  setForm({
-                    ...form,
+                  setForm((previous) => ({
+                    ...previous,
                     requiresApproval:
-                      event.target.checked,
-                  })
+                      event.target
+                        .checked,
+                  }))
                 }
-                className="accent-[#D4AF37]"
+                className="h-5 w-5 accent-[#D4AF37]"
               />
 
-              Employee approval required
+              <div>
+                <p className="font-semibold text-gray-900">
+                  Employee approval required
+                </p>
+
+                <p className="text-sm text-gray-500">
+                  Generated certificates remain pending
+                  until an employee approves them.
+                </p>
+              </div>
             </label>
 
             {/* BUTTONS */}
-
             <div className="mt-7 flex flex-wrap gap-3">
               <button
                 type="submit"
@@ -1001,17 +1292,16 @@ const CertificateTemplates = () => {
                 {loading
                   ? "Saving..."
                   : editingId
-                    ? "Update Template"
-                    : "Save Template"}
+                  ? "Update Template"
+                  : "Save Template"}
               </button>
 
               {editingId && (
                 <button
                   type="button"
-                  onClick={
-                    resetForm
-                  }
-                  className="rounded-xl border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-700 transition hover:bg-gray-50"
+                  onClick={resetForm}
+                  disabled={loading}
+                  className="rounded-xl border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -1021,12 +1311,12 @@ const CertificateTemplates = () => {
         </form>
 
         {/* =================================================
-            TEMPLATE LIST
+            SEARCH + LIST HEADER
         ================================================== */}
 
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="text-xl font-black text-gray-900">
               Saved Templates
             </h2>
 
@@ -1035,17 +1325,35 @@ const CertificateTemplates = () => {
             </p>
           </div>
 
-          <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-600">
-            {templates.length} Template
-            {templates.length ===
-            1
-              ? ""
-              : "s"}
-          </span>
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              value={search}
+              onChange={(event) =>
+                setSearch(
+                  event.target.value
+                )
+              }
+              placeholder="Search templates..."
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#D4AF37] sm:w-64"
+            />
+
+            <span className="shrink-0 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-600">
+              {filteredTemplates.length}{" "}
+              Template
+              {filteredTemplates.length ===
+              1
+                ? ""
+                : "s"}
+            </span>
+          </div>
         </div>
 
-        {templates.length ===
-        0 ? (
+        {/* =================================================
+            TEMPLATE LIST
+        ================================================== */}
+
+        {filteredTemplates.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-6 py-16 text-center">
             <FiFileText
               size={35}
@@ -1053,16 +1361,32 @@ const CertificateTemplates = () => {
             />
 
             <h3 className="mt-4 text-lg font-bold text-gray-900">
-              No certificate templates
+              {search
+                ? "No matching templates"
+                : "No certificate templates"}
             </h3>
 
             <p className="mt-2 text-sm text-gray-500">
-              Upload your first certificate template above.
+              {search
+                ? "Try another search term."
+                : "Upload your first certificate template above."}
             </p>
+
+            {!search && (
+              <button
+                type="button"
+                onClick={startCreate}
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#D4AF37] px-5 py-3 text-sm font-bold text-white"
+              >
+                <FiUpload />
+
+                Add Template
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {templates.map(
+            {filteredTemplates.map(
               (template) => {
                 const qr =
                   template?.positions
@@ -1072,44 +1396,87 @@ const CertificateTemplates = () => {
                   template?.fields
                     ?.qrCode !== false;
 
+                const fileUrl =
+                  getFileUrl(
+                    template?.templateFile
+                  );
+
+                const assignedCourse =
+                  template?.courseId
+                    ?.title ||
+                  "General Template";
+
                 return (
                   <div
-                    key={
-                      template._id
-                    }
+                    key={template._id}
                     className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
-                    <div className="mb-4 flex items-start justify-between">
+                    {/* TOP */}
+                    <div className="mb-4 flex items-start justify-between gap-3">
                       <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#D4AF37]/10 text-[#D4AF37]">
                         <FiFileText
                           size={22}
                         />
                       </div>
 
-                      <span className="rounded-full bg-[#D4AF37]/10 px-3 py-1 text-xs font-semibold capitalize text-[#9A7810]">
-                        {
-                          template.type
-                        }
-                      </span>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <span className="rounded-full bg-[#D4AF37]/10 px-3 py-1 text-xs font-semibold capitalize text-[#9A7810]">
+                          {typeLabels[
+                            template.type
+                          ] ||
+                            template.type ||
+                            "Template"}
+                        </span>
+
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            template.isActive !==
+                            false
+                              ? "bg-green-50 text-green-700"
+                              : "bg-gray-100 text-gray-500"
+                          }`}
+                        >
+                          {template.isActive !==
+                          false
+                            ? "Active"
+                            : "Inactive"}
+                        </span>
+                      </div>
                     </div>
 
+                    {/* NAME */}
                     <h3 className="font-bold text-gray-900">
-                      {
-                        template.name
-                      }
+                      {template.name}
                     </h3>
 
                     <p className="mt-2 text-sm text-gray-500">
-                      {
-                        template
-                          .courseId
-                          ?.title
-                      ||
-                        "General Template"}
+                      {assignedCourse}
                     </p>
 
-                    {/* QR INFO */}
+                    {/* APPROVAL */}
+                    <div className="mt-4 rounded-xl bg-gray-50 p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wide text-gray-400">
+                          Approval
+                        </span>
 
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                            template.requiresApproval !==
+                            false
+                              ? "bg-yellow-50 text-yellow-700"
+                              : "bg-gray-200 text-gray-500"
+                          }`}
+                        >
+                          {template.requiresApproval !==
+                          false
+                            ? "Required"
+                            : "Disabled"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* QR INFO */}
                     <div className="mt-4 rounded-xl bg-gray-50 p-4">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold uppercase tracking-wide text-gray-400">
@@ -1134,16 +1501,14 @@ const CertificateTemplates = () => {
                           <QRInfo
                             label="X"
                             value={
-                              qr.x ??
-                              0
+                              qr.x ?? 0
                             }
                           />
 
                           <QRInfo
                             label="Y"
                             value={
-                              qr.y ??
-                              0
+                              qr.y ?? 0
                             }
                           />
 
@@ -1166,7 +1531,70 @@ const CertificateTemplates = () => {
                       )}
                     </div>
 
-                    <div className="mt-5 flex gap-2">
+                    {/* FIELDS */}
+                    <div className="mt-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+                        Dynamic Fields
+                      </p>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {Object.entries(
+                          template?.fields ||
+                            {}
+                        )
+                          .filter(
+                            ([, enabled]) =>
+                              enabled
+                          )
+                          .map(
+                            ([field]) => (
+                              <span
+                                key={field}
+                                className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-semibold text-gray-600"
+                              >
+                                {fieldLabels[
+                                  field
+                                ] ||
+                                  formatField(
+                                    field
+                                  )}
+                              </span>
+                            )
+                          )}
+                      </div>
+                    </div>
+
+                    {/* ACTIONS */}
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      {fileUrl && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPreviewTemplate(
+                              template
+                            )
+                          }
+                          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                        >
+                          <FiEye />
+
+                          Preview
+                        </button>
+                      )}
+
+                      {fileUrl && (
+                        <a
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                        >
+                          <FiFileText />
+
+                          Open
+                        </a>
+                      )}
+
                       <button
                         type="button"
                         onClick={() =>
@@ -1177,6 +1605,7 @@ const CertificateTemplates = () => {
                         className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#D4AF37]/40 px-3 py-2.5 text-sm font-semibold text-[#9A7810] transition hover:bg-[#D4AF37]/5"
                       >
                         <FiEdit3 />
+
                         Edit
                       </button>
 
@@ -1200,6 +1629,95 @@ const CertificateTemplates = () => {
           </div>
         )}
       </div>
+
+      {/* =================================================
+          PREVIEW MODAL
+      ================================================== */}
+
+      {previewTemplate && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() =>
+            setPreviewTemplate(null)
+          }
+        >
+          <div
+            className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4">
+              <div>
+                <h2 className="text-xl font-black text-gray-900">
+                  {previewTemplate.name}
+                </h2>
+
+                <p className="mt-1 text-xs font-medium text-gray-500">
+                  {typeLabels[
+                    previewTemplate.type
+                  ] ||
+                    previewTemplate.type ||
+                    "Template"}
+                  {" • "}
+                  {previewTemplate
+                    .courseId?.title ||
+                    "General Template"}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setPreviewTemplate(
+                    null
+                  )
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition hover:bg-gray-50"
+              >
+                <FiX />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto bg-gray-100 p-4">
+              {getFileUrl(
+                previewTemplate.templateFile
+              ) ? (
+                isPdf(
+                  previewTemplate.templateFile
+                ) ? (
+                  <iframe
+                    title="Certificate Template Preview"
+                    src={getFileUrl(
+                      previewTemplate.templateFile
+                    )}
+                    className="h-[78vh] w-full rounded-2xl bg-white"
+                  />
+                ) : (
+                  <div className="flex min-h-[75vh] items-center justify-center rounded-2xl bg-white p-6">
+                    <img
+                      src={getFileUrl(
+                        previewTemplate.templateFile
+                      )}
+                      alt={
+                        previewTemplate.name
+                      }
+                      className="max-h-[75vh] max-w-full object-contain"
+                    />
+                  </div>
+                )
+              ) : (
+                <div className="flex min-h-[75vh] items-center justify-center rounded-2xl bg-white">
+                  <p className="text-sm font-semibold text-gray-500">
+                    Template preview is not
+                    available.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1219,23 +1737,20 @@ const QRInput = ({
     <div>
       <label className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-500">
         {icon}
+
         {label}
       </label>
 
       <input
         type="number"
         min="0"
-        value={
-          value ?? ""
-        }
+        value={value ?? ""}
         onChange={(event) =>
           onChange(
             event.target.value
           )
         }
-        placeholder={
-          placeholder
-        }
+        placeholder={placeholder}
         className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-[#D4AF37] focus:bg-white focus:ring-2 focus:ring-[#D4AF37]/10"
       />
     </div>
@@ -1261,6 +1776,43 @@ const QRInfo = ({
       </p>
     </div>
   );
+};
+
+// =====================================================
+// HELPERS
+// =====================================================
+
+const isValidNumber = (value) => {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0
+  );
+};
+
+const formatField = (field) => {
+  return String(field)
+    .replace(
+      /([A-Z])/g,
+      " $1"
+    )
+    .replace(
+      /^./,
+      (char) =>
+        char.toUpperCase()
+    );
+};
+
+const getTemplateFileForEdit = (
+  templates,
+  id
+) => {
+  const template = templates.find(
+    (item) =>
+      item?._id === id
+  );
+
+  return template?.templateFile || "";
 };
 
 export default CertificateTemplates;

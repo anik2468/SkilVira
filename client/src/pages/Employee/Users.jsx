@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useMemo, useState } from "react";
 import api from "../../services/api";
 
@@ -17,7 +18,7 @@ import {
   FiAlertCircle,
 } from "react-icons/fi";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = API_ORIGIN;
 
 const Users = () => {
   const [users, setUsers] = useState([]);
@@ -595,6 +596,17 @@ const Users = () => {
                           user?._id || ""
                         );
 
+                  const canManageAccount = ![
+                    "control",
+                    "admin",
+                    "superadmin",
+                    "super_admin",
+                    "employee",
+                  ].includes(
+                    String(user?.role || "").toLowerCase()
+                  );
+
+
                       return (
                         <tr
                           key={user._id}
@@ -671,7 +683,9 @@ const Users = () => {
                                 View
                               </button>
 
-                              {blocked ? (
+                              {canManageAccount && (
+                                <>
+{blocked ? (
                                 <button
                                   type="button"
                                   disabled={busy}
@@ -721,6 +735,8 @@ const Users = () => {
                                 />
                                 Delete
                               </button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -743,6 +759,17 @@ const Users = () => {
                     actionLoading.includes(
                       user?._id || ""
                     );
+
+                  const canManageAccount = ![
+                    "control",
+                    "admin",
+                    "superadmin",
+                    "super_admin",
+                    "employee",
+                  ].includes(
+                    String(user?.role || "").toLowerCase()
+                  );
+
 
                   return (
                     <div
@@ -827,7 +854,9 @@ const Users = () => {
                           View
                         </button>
 
-                        {blocked ? (
+                        {canManageAccount && (
+                                <>
+{blocked ? (
                           <button
                             type="button"
                             disabled={busy}
@@ -877,6 +906,8 @@ const Users = () => {
                           />
                           Delete
                         </button>
+                                </>
+                              )}
                       </div>
                     </div>
                   );

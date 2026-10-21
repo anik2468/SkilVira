@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { API_ORIGIN, API_URL } from "../../services/urlConfig.js";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   FiSave,
@@ -15,36 +16,27 @@ import {
   FiCopy,
   FiEye,
   FiEyeOff,
+  FiX,
 } from "react-icons/fi";
 
 import api from "../../services/api";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE =
+  import.meta.env.VITE_API_URL?.replace(/\/api\/?$/, "") ||
+  API_ORIGIN;
 
 const PaymentSettings = () => {
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploadingQR, setUploadingQR] = useState(false);
+  const [removingQR, setRemovingQR] = useState(false);
 
-  const [saving, setSaving] =
-    useState(false);
-
-  const [uploadingQR, setUploadingQR] =
-    useState(false);
-
-  const [removingQR, setRemovingQR] =
-    useState(false);
-
-  const [qrFile, setQrFile] =
-    useState(null);
-
-  const [error, setError] =
-    useState("");
-
-  const [success, setSuccess] =
-    useState("");
-
+  const [qrFile, setQrFile] = useState(null);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [showAccountNumber, setShowAccountNumber] =
     useState(false);
+  const [showQRPreview, setShowQRPreview] = useState(false);
 
   const [settings, setSettings] = useState({
     upiId: "",
@@ -58,6 +50,10 @@ const PaymentSettings = () => {
     qrCode: "",
   });
 
+  // =====================================================
+  // LOAD SETTINGS
+  // =====================================================
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -67,41 +63,22 @@ const PaymentSettings = () => {
       setLoading(true);
       setError("");
 
-      const { data } =
-        await api.get(
-          "/payment-settings"
-        );
+      const { data } = await api.get("/payment-settings");
 
-      const current =
-        data?.settings || {};
+      const current = data?.settings || {};
 
       setSettings({
-        upiId:
-          current?.upiId || "",
-
+        upiId: current?.upiId || "",
         accountHolderName:
           current?.accountHolderName || "",
-
-        accountNumber:
-          current?.accountNumber || "",
-
-        ifscCode:
-          current?.ifscCode || "",
-
-        bankName:
-          current?.bankName || "",
-
-        branch:
-          current?.branch || "",
-
+        accountNumber: current?.accountNumber || "",
+        ifscCode: current?.ifscCode || "",
+        bankName: current?.bankName || "",
+        branch: current?.branch || "",
         paymentInstructions:
           current?.paymentInstructions || "",
-
-        isActive:
-          current?.isActive !== false,
-
-        qrCode:
-          current?.qrCode || "",
+        isActive: current?.isActive !== false,
+        qrCode: current?.qrCode || "",
       });
     } catch (err) {
       console.error(
@@ -118,6 +95,10 @@ const PaymentSettings = () => {
       setLoading(false);
     }
   };
+
+  // =====================================================
+  // CHANGE HANDLER
+  // =====================================================
 
   const handleChange = (event) => {
     const {
@@ -139,44 +120,50 @@ const PaymentSettings = () => {
     setSuccess("");
   };
 
+  // =====================================================
+  // SAVE SETTINGS
+  // =====================================================
+
   const saveSettings = async () => {
     try {
       setSaving(true);
       setError("");
       setSuccess("");
 
-      const { data } =
-        await api.put(
-          "/payment-settings",
-          {
-            upiId:
-              settings.upiId.trim(),
+      const payload = {
+        upiId: settings.upiId.trim(),
 
-            accountHolderName:
-              settings.accountHolderName.trim(),
+        accountHolderName:
+          settings.accountHolderName.trim(),
 
-            accountNumber:
-              settings.accountNumber.trim(),
+        accountNumber:
+          settings.accountNumber.trim(),
 
-            ifscCode:
-              settings.ifscCode.trim().toUpperCase(),
+        ifscCode:
+          settings.ifscCode
+            .trim()
+            .toUpperCase(),
 
-            bankName:
-              settings.bankName.trim(),
+        bankName:
+          settings.bankName.trim(),
 
-            branch:
-              settings.branch.trim(),
+        branch:
+          settings.branch.trim(),
 
-            paymentInstructions:
-              settings.paymentInstructions.trim(),
+        paymentInstructions:
+          settings.paymentInstructions.trim(),
 
-            isActive:
-              settings.isActive,
-          }
-        );
+        isActive: settings.isActive,
+      };
+
+      const { data } = await api.put(
+        "/payment-settings",
+        payload
+      );
 
       setSettings((previous) => ({
         ...previous,
+        ...payload,
         qrCode:
           data?.settings?.qrCode ||
           previous.qrCode,
@@ -201,11 +188,61 @@ const PaymentSettings = () => {
     }
   };
 
+  // =====================================================
+  // QR FILE CHANGE
+  // =====================================================
+
+  const handleQRFileChange = (event) => {
+    const file =
+      event.target.files?.[0] || null;
+
+    setQrFile(file);
+    setError("");
+    setSuccess("");
+
+    if (!file) {
+      return;
+    }
+
+    const allowedTypes = [
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/webp",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      setQrFile(null);
+
+      setError(
+        "Please select a PNG, JPG, JPEG or WebP image."
+      );
+
+      return;
+    }
+
+    const maxSize =
+      5 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      setQrFile(null);
+
+      setError(
+        "QR image must be 5 MB or smaller."
+      );
+    }
+  };
+
+  // =====================================================
+  // UPLOAD QR
+  // =====================================================
+
   const uploadQR = async () => {
     if (!qrFile) {
       setError(
         "Please select a QR image first."
       );
+
       return;
     }
 
@@ -214,25 +251,23 @@ const PaymentSettings = () => {
       setError("");
       setSuccess("");
 
-      const formData =
-        new FormData();
+      const formData = new FormData();
 
       formData.append(
         "qrCode",
         qrFile
       );
 
-      const { data } =
-        await api.post(
-          "/payment-settings/qr",
-          formData,
-          {
-            headers: {
-              "Content-Type":
-                "multipart/form-data",
-            },
-          }
-        );
+      const { data } = await api.post(
+        "/payment-settings/qr",
+        formData,
+        {
+          headers: {
+            "Content-Type":
+              "multipart/form-data",
+          },
+        }
+      );
 
       setSettings((previous) => ({
         ...previous,
@@ -262,11 +297,14 @@ const PaymentSettings = () => {
     }
   };
 
+  // =====================================================
+  // REMOVE QR
+  // =====================================================
+
   const removeQR = async () => {
-    const confirmed =
-      window.confirm(
-        "Remove the current payment QR code?"
-      );
+    const confirmed = window.confirm(
+      "Remove the current payment QR code?"
+    );
 
     if (!confirmed) {
       return;
@@ -305,7 +343,24 @@ const PaymentSettings = () => {
     }
   };
 
+  // =====================================================
+  // FILE URL
+  // =====================================================
+
   const getFileUrl = (file) => {
+    if (!file) {
+      return "";
+    }
+
+    if (typeof file === "object") {
+      file =
+        file?.url ||
+        file?.path ||
+        file?.location ||
+        file?.secure_url ||
+        "";
+    }
+
     if (!file) {
       return "";
     }
@@ -317,8 +372,47 @@ const PaymentSettings = () => {
       return file;
     }
 
-    return `${API_BASE}${file}`;
+    if (file.startsWith("/")) {
+      return `${API_BASE}${file}`;
+    }
+
+    return `${API_BASE}/${file}`;
   };
+
+  // =====================================================
+  // CURRENT QR URL
+  // =====================================================
+
+  const currentQRUrl = useMemo(
+    () => getFileUrl(settings.qrCode),
+    [settings.qrCode]
+  );
+
+  // =====================================================
+  // SELECTED QR PREVIEW URL
+  // =====================================================
+
+  const selectedQRPreview = useMemo(() => {
+    if (!qrFile) {
+      return "";
+    }
+
+    return URL.createObjectURL(qrFile);
+  }, [qrFile]);
+
+  useEffect(() => {
+    return () => {
+      if (selectedQRPreview) {
+        URL.revokeObjectURL(
+          selectedQRPreview
+        );
+      }
+    };
+  }, [selectedQRPreview]);
+
+  // =====================================================
+  // COPY UPI
+  // =====================================================
 
   const copyUPI = async () => {
     if (!settings.upiId) {
@@ -338,8 +432,16 @@ const PaymentSettings = () => {
         "Copy UPI error:",
         err
       );
+
+      setError(
+        "Unable to copy UPI ID."
+      );
     }
   };
+
+  // =====================================================
+  // LOADING
+  // =====================================================
 
   if (loading) {
     return (
@@ -364,9 +466,13 @@ const PaymentSettings = () => {
     );
   }
 
+  // =====================================================
+  // PAGE
+  // =====================================================
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      {/* Header */}
+      {/* HEADER */}
       <section className="relative overflow-hidden rounded-3xl bg-[#111111] p-6 text-white shadow-sm sm:p-8">
         <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-[#D4AF37]/10 blur-3xl" />
 
@@ -374,6 +480,7 @@ const PaymentSettings = () => {
           <div>
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#D4AF37]">
               <FiShield size={13} />
+
               Payment Configuration
             </div>
 
@@ -382,8 +489,9 @@ const PaymentSettings = () => {
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/60 sm:text-base">
-              Manage the UPI, bank account and QR information students use for
-              manual payments on SkilVira.
+              Manage the UPI, bank account and QR
+              information students use for manual
+              payments on SkilVira.
             </p>
           </div>
 
@@ -409,7 +517,7 @@ const PaymentSettings = () => {
         </div>
       </section>
 
-      {/* Alerts */}
+      {/* ALERTS */}
       {success && (
         <div className="flex items-start gap-3 rounded-2xl border border-green-100 bg-green-50 px-5 py-4 text-sm font-medium text-green-700">
           <FiCheckCircle
@@ -418,6 +526,14 @@ const PaymentSettings = () => {
           />
 
           <span>{success}</span>
+
+          <button
+            type="button"
+            onClick={() => setSuccess("")}
+            className="ml-auto text-green-500 hover:text-green-700"
+          >
+            <FiX />
+          </button>
         </div>
       )}
 
@@ -429,10 +545,18 @@ const PaymentSettings = () => {
           />
 
           <span>{error}</span>
+
+          <button
+            type="button"
+            onClick={() => setError("")}
+            className="ml-auto text-red-500 hover:text-red-700"
+          >
+            <FiX />
+          </button>
         </div>
       )}
 
-      {/* QR */}
+      {/* QR CODE */}
       <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
         <SectionHeader
           icon={<FiImage size={20} />}
@@ -441,7 +565,7 @@ const PaymentSettings = () => {
         />
 
         <div className="grid gap-6 p-5 lg:grid-cols-2 lg:p-6">
-          {/* Current QR */}
+          {/* CURRENT QR */}
           <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
             <div className="mb-4 flex items-center justify-between">
               <div>
@@ -450,45 +574,64 @@ const PaymentSettings = () => {
                 </p>
 
                 <p className="mt-1 text-xs text-gray-500">
-                  Active payment QR displayed to students.
+                  Active payment QR displayed to
+                  students.
                 </p>
               </div>
 
               {settings.qrCode && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700">
                   <FiCheckCircle size={13} />
+
                   Uploaded
                 </span>
               )}
             </div>
 
-            {settings.qrCode ? (
+            {currentQRUrl ? (
               <div className="rounded-2xl border border-gray-200 bg-white p-5">
                 <div className="flex justify-center">
-                  <img
-                    src={getFileUrl(
-                      settings.qrCode
-                    )}
-                    alt="SkilVira Payment QR"
-                    className="h-64 w-64 rounded-xl object-contain"
-                    onError={(event) => {
-                      event.currentTarget.style.display =
-                        "none";
-                    }}
-                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowQRPreview(true)
+                    }
+                    className="rounded-2xl p-2 transition hover:bg-gray-50"
+                  >
+                    <img
+                      src={currentQRUrl}
+                      alt="SkilVira Payment QR"
+                      className="h-64 w-64 rounded-xl object-contain"
+                      onError={(event) => {
+                        event.currentTarget.style.display =
+                          "none";
+                      }}
+                    />
+                  </button>
                 </div>
 
                 <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowQRPreview(true)
+                    }
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                  >
+                    <FiEye size={16} />
+
+                    Preview QR
+                  </button>
+
                   <a
-                    href={getFileUrl(
-                      settings.qrCode
-                    )}
+                    href={currentQRUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
                   >
-                    <FiEye size={16} />
-                    View QR
+                    <FiImage size={16} />
+
+                    Open Image
                   </a>
 
                   <button
@@ -517,15 +660,15 @@ const PaymentSettings = () => {
                   </p>
 
                   <p className="mt-1 text-sm text-gray-500">
-                    Students will not see a QR payment option until one is
-                    uploaded.
+                    Students will not see a QR payment
+                    option until one is uploaded.
                   </p>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Upload */}
+          {/* UPLOAD */}
           <div className="rounded-2xl border border-gray-100 bg-white p-5">
             <div className="mb-5">
               <p className="text-sm font-bold text-gray-900">
@@ -533,7 +676,8 @@ const PaymentSettings = () => {
               </p>
 
               <p className="mt-1 text-xs text-gray-500">
-                Supported image formats: PNG, JPG, JPEG and WebP.
+                PNG, JPG, JPEG or WebP. Maximum size
+                5 MB.
               </p>
             </div>
 
@@ -559,12 +703,7 @@ const PaymentSettings = () => {
                 id="payment-qr"
                 type="file"
                 accept="image/png,image/jpeg,image/jpg,image/webp"
-                onChange={(event) =>
-                  setQrFile(
-                    event.target.files?.[0] ||
-                      null
-                  )
-                }
+                onChange={handleQRFileChange}
                 className="hidden"
               />
             </label>
@@ -582,10 +721,9 @@ const PaymentSettings = () => {
                     </p>
 
                     <p className="mt-1 text-xs text-gray-500">
-                      {(
-                        qrFile.size /
-                        1024
-                      ).toFixed(1)}{" "}
+                      {(qrFile.size / 1024).toFixed(
+                        1
+                      )}{" "}
                       KB
                     </p>
                   </div>
@@ -595,12 +733,28 @@ const PaymentSettings = () => {
                     onClick={() =>
                       setQrFile(null)
                     }
-                    className="text-lg font-bold text-gray-400 hover:text-red-500"
+                    className="text-gray-400 hover:text-red-500"
                     aria-label="Remove selected file"
                   >
-                    ×
+                    <FiX size={18} />
                   </button>
                 </div>
+
+                {selectedQRPreview && (
+                  <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white p-3">
+                    <p className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400">
+                      Preview
+                    </p>
+
+                    <div className="flex justify-center">
+                      <img
+                        src={selectedQRPreview}
+                        alt="Selected payment QR preview"
+                        className="h-52 w-52 rounded-xl object-contain"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -619,11 +773,13 @@ const PaymentSettings = () => {
                     size={17}
                     className="animate-spin"
                   />
+
                   Uploading...
                 </>
               ) : (
                 <>
                   <FiUpload size={17} />
+
                   Upload QR Code
                 </>
               )}
@@ -674,7 +830,7 @@ const PaymentSettings = () => {
         </div>
       </section>
 
-      {/* Bank */}
+      {/* BANK */}
       <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
         <SectionHeader
           icon={<FiShield size={20} />}
@@ -686,9 +842,7 @@ const PaymentSettings = () => {
           <InputField
             label="Account Holder Name"
             name="accountHolderName"
-            value={
-              settings.accountHolderName
-            }
+            value={settings.accountHolderName}
             onChange={handleChange}
             placeholder="Enter account holder name"
           />
@@ -710,9 +864,7 @@ const PaymentSettings = () => {
                     ? "text"
                     : "password"
                 }
-                value={
-                  settings.accountNumber
-                }
+                value={settings.accountNumber}
                 onChange={handleChange}
                 placeholder="Enter account number"
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 pr-12 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#D4AF37] focus:bg-white focus:ring-2 focus:ring-[#D4AF37]/10"
@@ -745,9 +897,7 @@ const PaymentSettings = () => {
           <InputField
             label="IFSC Code"
             name="ifscCode"
-            value={
-              settings.ifscCode
-            }
+            value={settings.ifscCode}
             onChange={handleChange}
             placeholder="SBIN0000000"
           />
@@ -755,9 +905,7 @@ const PaymentSettings = () => {
           <InputField
             label="Bank Name"
             name="bankName"
-            value={
-              settings.bankName
-            }
+            value={settings.bankName}
             onChange={handleChange}
             placeholder="Enter bank name"
           />
@@ -765,16 +913,14 @@ const PaymentSettings = () => {
           <InputField
             label="Branch"
             name="branch"
-            value={
-              settings.branch
-            }
+            value={settings.branch}
             onChange={handleChange}
             placeholder="Enter branch name"
           />
         </div>
       </section>
 
-      {/* Instructions */}
+      {/* INSTRUCTIONS */}
       <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
         <SectionHeader
           icon={<FiInfo size={20} />}
@@ -803,13 +949,14 @@ const PaymentSettings = () => {
           />
 
           <p className="mt-2 text-xs text-gray-400">
-            These instructions should be clear enough for a student to
-            complete the payment without additional guidance.
+            These instructions should be clear enough
+            for a student to complete the payment
+            without additional guidance.
           </p>
         </div>
       </section>
 
-      {/* Activation */}
+      {/* ACTIVATION */}
       <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
         <SectionHeader
           icon={<FiCheckCircle size={20} />}
@@ -847,9 +994,7 @@ const PaymentSettings = () => {
               <input
                 type="checkbox"
                 name="isActive"
-                checked={
-                  settings.isActive
-                }
+                checked={settings.isActive}
                 onChange={handleChange}
                 className="peer sr-only"
               />
@@ -862,7 +1007,7 @@ const PaymentSettings = () => {
         </div>
       </section>
 
-      {/* Save */}
+      {/* SAVE */}
       <div className="sticky bottom-4 z-10">
         <div className="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white/95 p-4 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
@@ -877,7 +1022,8 @@ const PaymentSettings = () => {
               </p>
 
               <p className="text-xs text-gray-500">
-                Changes will affect the current manual payment information.
+                Changes will affect the current manual
+                payment information.
               </p>
             </div>
           </div>
@@ -894,21 +1040,71 @@ const PaymentSettings = () => {
                   size={17}
                   className="animate-spin"
                 />
+
                 Saving...
               </>
             ) : (
               <>
                 <FiSave size={17} />
+
                 Save Payment Settings
               </>
             )}
           </button>
         </div>
       </div>
+
+      {/* QR LIGHTBOX */}
+      {showQRPreview && currentQRUrl && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() =>
+            setShowQRPreview(false)
+          }
+        >
+          <div
+            className="relative w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <button
+              type="button"
+              onClick={() =>
+                setShowQRPreview(false)
+              }
+              className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
+              aria-label="Close QR preview"
+            >
+              <FiX size={19} />
+            </button>
+
+            <div className="pr-12">
+              <h2 className="text-xl font-bold text-gray-900">
+                Payment QR Preview
+              </h2>
+
+              <p className="mt-1 text-sm text-gray-500">
+                This is the current QR code configured
+                for manual payments.
+              </p>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-6">
+              <div className="flex justify-center">
+                <img
+                  src={currentQRUrl}
+                  alt="Full payment QR"
+                  className="max-h-[70vh] w-full max-w-[420px] object-contain"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
 
 // =====================================================
 // SECTION HEADER
@@ -939,7 +1135,6 @@ const SectionHeader = ({
     </div>
   );
 };
-
 
 // =====================================================
 // INPUT FIELD

@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
@@ -257,7 +258,7 @@ certificate.certificateFile &&
 
 <a
 
-href={`http://localhost:5000${certificate.certificateFile}`}
+href={`${API_ORIGIN}${certificate.certificateFile}`}
 
 target="_blank"
 

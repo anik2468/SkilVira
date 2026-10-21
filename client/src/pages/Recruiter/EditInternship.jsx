@@ -1,3 +1,4 @@
+import { API_ORIGIN } from "../../services/urlConfig.js";
 import { useEffect, useState } from "react";
 import {
   FiArrowLeft,
@@ -1280,7 +1281,7 @@ const getAssetUrl = (
     return value;
   }
 
-  return `http://localhost:5000${value}`;
+  return `${API_ORIGIN}${value}`;
 };
 
 const formatDateForInput = (

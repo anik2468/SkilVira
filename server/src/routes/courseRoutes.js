@@ -1,4 +1,5 @@
 import express from "express";
+import auth from "../middleware/auth.js";
 
 import {
   createCourse,
@@ -8,48 +9,28 @@ import {
   deleteCourse,
 } from "../controllers/courseController.js";
 
-
 const router = express.Router();
 
+const requireCourseStaff = (req, res, next) => {
+  const role = String(req.user?.role || "").toLowerCase();
 
-// ================================
-// Courses
-// ================================
+  if (["employee", "control", "admin", "superadmin"].includes(role)) {
+    return next();
+  }
 
+  return res.status(403).json({
+    success: false,
+    message: "Only authorized staff can manage courses.",
+  });
+};
 
-// Create Course
-router.post(
-  "/",
-  createCourse
-);
+// Public course browsing
+router.get("/", getCourses);
+router.get("/:id", getCourse);
 
-
-// Get All Courses
-router.get(
-  "/",
-  getCourses
-);
-
-
-// Get Single Course
-router.get(
-  "/:id",
-  getCourse
-);
-
-
-// Update Course
-router.put(
-  "/:id",
-  updateCourse
-);
-
-
-// Delete Course
-router.delete(
-  "/:id",
-  deleteCourse
-);
-
+// Staff-only changes
+router.post("/", auth, requireCourseStaff, createCourse);
+router.put("/:id", auth, requireCourseStaff, updateCourse);
+router.delete("/:id", auth, requireCourseStaff, deleteCourse);
 
 export default router;

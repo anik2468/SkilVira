@@ -1,3 +1,4 @@
+import { API_URL } from "../../services/urlConfig.js";
 import { useState } from "react";
 import {
   Link,
@@ -99,7 +100,7 @@ const ResetPassword = () => {
 
       const { data } =
         await axios.post(
-          `http://localhost:5000/api/auth/reset-password/${token}`,
+          `${API_URL}/auth/reset-password/${token}`,
           {
             password,
           }

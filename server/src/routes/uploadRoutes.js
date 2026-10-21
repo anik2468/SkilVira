@@ -1,100 +1,165 @@
 import express from "express";
 
+import auth from "../middleware/auth.js";
 import upload from "../middleware/upload.js";
 import uploadCertificate from "../middleware/uploadCertificate.js";
-
+import uploadProfile from "../middleware/uploadProfile.js";
+import uploadResume from "../middleware/uploadResume.js";
+import {
+  thumbnailUpload,
+  videoUpload,
+} from "../middleware/uploadCourseMedia.js";
 
 const router = express.Router();
 
+const getRole = (req) =>
+  String(req.user?.role || req.user?.userRole || "").toLowerCase();
 
+const requireStaff = (req, res, next) => {
+  if (["employee", "control"].includes(getRole(req))) {
+    return next();
+  }
 
-// ===============================
-// Upload Normal File/Image
-// ===============================
+  return res.status(403).json({
+    success: false,
+    message: "Only authorized staff can upload certificate templates.",
+  });
+};
 
+// Generic image upload
 router.post(
-"/",
-upload.single("file"),
+  "/",
+  auth,
+  upload.single("file"),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "File is required.",
+      });
+    }
 
-(req,res)=>{
+    return res.status(201).json({
+      success: true,
+      url: `/uploads/${req.file.filename}`,
+    });
+  }
+);
 
+// Profile photo upload used by recruiter and other profile pages.
+// The frontend sends multipart field name "image".
+router.post(
+  "/avatar",
+  auth,
+  uploadProfile.single("image"),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Profile photo is required.",
+      });
+    }
 
-if(!req.file){
+    const url = `/uploads/profile/${req.file.filename}`;
 
-return res.status(400).json({
+    return res.status(201).json({
+      success: true,
+      url,
+      path: url,
+      data: { url, path: url },
+    });
+  }
+);
 
-success:false,
+// Resume PDF upload
+router.post(
+  "/resume",
+  auth,
+  uploadResume.single("resume"),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Resume PDF is required.",
+      });
+    }
 
-message:"File required"
+    const url = `/uploads/resume/${req.file.filename}`;
 
-});
+    return res.status(201).json({
+      success: true,
+      url,
+      path: url,
+      data: { url, path: url },
+    });
+  }
+);
 
-}
+// Certificate template upload
+router.post(
+  "/certificate",
+  auth,
+  requireStaff,
+  uploadCertificate.single("certificate"),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Certificate file is required.",
+      });
+    }
 
+    const url = `/uploads/certificate/${req.file.filename}`;
 
-
-res.json({
-
-success:true,
-
-url:
-`/uploads/${req.file.filename}`
-
-});
-
-
-}
-
+    return res.status(201).json({
+      success: true,
+      url,
+      path: url,
+    });
+  }
 );
 
 
-
-
-
-
-// ===============================
-// Upload Certificate Template
-// ===============================
-
-
+// Course thumbnail upload (employee/control only)
 router.post(
+  "/course-thumbnail",
+  auth,
+  requireStaff,
+  thumbnailUpload.single("thumbnail"),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please select a thumbnail image.",
+      });
+    }
 
-"/certificate",
-
-uploadCertificate.single("certificate"),
-
-(req,res)=>{
-
-
-if(!req.file){
-
-return res.status(400).json({
-
-success:false,
-
-message:"Certificate file required"
-
-});
-
-}
-
-
-
-res.json({
-
-success:true,
-
-url:
-`/uploads/certificate/${req.file.filename}`
-
-});
-
-
-}
-
+    return res.status(201).json({
+      success: true,
+      url: `/uploads/courses/thumbnails/${req.file.filename}`,
+    });
+  }
 );
 
+// Course video upload (employee/control only)
+router.post(
+  "/course-video",
+  auth,
+  requireStaff,
+  videoUpload.single("video"),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please select a video file.",
+      });
+    }
 
-
+    return res.status(201).json({
+      success: true,
+      url: `/uploads/courses/videos/${req.file.filename}`,
+    });
+  }
+);
 
 export default router;

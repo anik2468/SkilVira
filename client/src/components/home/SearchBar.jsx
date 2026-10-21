@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FiArrowRight,
   FiMapPin,
@@ -8,14 +9,18 @@ import {
 const SearchBar = () => {
   const [role, setRole] = useState("");
   const [location, setLocation] = useState("");
+  const navigate = useNavigate();
 
   const handleSearch = (e) => {
     e.preventDefault();
-
-    console.log({
-      role,
-      location,
-    });
+    const query = [role.trim(), location.trim()]
+      .filter(Boolean)
+      .join(" ");
+    navigate(
+      query
+        ? `/student/courses?search=${encodeURIComponent(query)}`
+        : "/courses"
+    );
   };
 
   return (
@@ -39,14 +44,14 @@ const SearchBar = () => {
 
             <div className="min-w-0 flex-1">
               <label className="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                Find opportunity
+                Find course or skill
               </label>
 
               <input
                 type="text"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                placeholder="Role, skill or company"
+                placeholder="Course, skill or category"
                 className="mt-0.5 w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
               />
             </div>
@@ -66,14 +71,14 @@ const SearchBar = () => {
 
             <div className="min-w-0 flex-1">
               <label className="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                Location
+                Topic or level
               </label>
 
               <input
                 type="text"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                placeholder="Remote or city"
+                placeholder="e.g. beginner, frontend"
                 className="mt-0.5 w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
               />
             </div>
@@ -96,7 +101,7 @@ const SearchBar = () => {
         {/* Bottom hints */}
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-2 pb-1">
           <p className="text-[10px] font-semibold text-slate-400">
-            Search internships by skills, roles or companies
+            Search courses by title, category or skill
           </p>
 
           <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-[#B28F16]">
