@@ -6,6 +6,7 @@ import {
 
 import { useState } from "react";
 import axios from "axios";
+import { API_URL } from "../../services/urlConfig";
 
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
@@ -137,7 +138,7 @@ const Login = () => {
 
       const res =
         await axios.post(
-          "http://localhost:5000/api/auth/login",
+          `${API_URL}/auth/login`,
           {
             email:
               formData.email
@@ -189,12 +190,12 @@ const Login = () => {
 
   const googleLogin = () => {
     window.location.href =
-      "http://localhost:5000/api/auth/google";
+      `${API_URL}/auth/google`;
   };
 
   const linkedinLogin = () => {
     window.location.href =
-      "http://localhost:5000/api/auth/linkedin";
+      `${API_URL}/auth/linkedin`;
   };
 
   return (
