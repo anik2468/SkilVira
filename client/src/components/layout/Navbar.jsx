@@ -51,7 +51,7 @@ const Navbar = () => {
               <span className="absolute -bottom-1 -right-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-black" />
             </div>
 
-            <div className="hidden sm:block">
+            <div className="block min-w-0">
               <p className="text-xl font-black tracking-tight text-slate-950">
                 Skil<span className="text-[#D4AF37]">Vira</span>
               </p>
