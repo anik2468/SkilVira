@@ -17,7 +17,7 @@ const getRole = (req) =>
   String(req.user?.role || req.user?.userRole || "").toLowerCase();
 
 const isStaff = (req) =>
-  ["employee", "control"].includes(getRole(req));
+  ["employee", "control", "admin"].includes(getRole(req));
 
 const isValidId = (id) =>
   mongoose.Types.ObjectId.isValid(String(id || ""));
