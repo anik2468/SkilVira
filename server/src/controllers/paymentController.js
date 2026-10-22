@@ -638,10 +638,13 @@ export const getPendingPayments = async (req, res) => {
       });
     }
 
+    // Include legacy manual submissions too: older records may have
+    // a missing/default paymentMode, but still contain UTR and screenshot.
     const payments = await Payment.find({
       status: "pending",
-      paymentMode: "manual",
       isDeleted: { $ne: true },
+      paymentScreenshot: { $exists: true, $nin: ["", null] },
+      transactionReference: { $exists: true, $nin: ["", null] },
     })
       .populate("student", "name email")
       .populate("course", "title")
