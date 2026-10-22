@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import PlatformLogoSettings from "../../components/admin/PlatformLogoSettings.jsx";
 import { FiUser, FiCreditCard, FiTag, FiSettings, FiArrowUpRight } from "react-icons/fi";
 
 const options = [
@@ -14,6 +15,7 @@ export default function EmployeeSettings() {
       <div className="mx-auto max-w-6xl">
         <h1 className="text-3xl font-black text-slate-950">Employee Settings</h1>
         <p className="mt-2 text-sm text-slate-500">Manage your profile and available settings.</p>
+        <div className="mt-6"><PlatformLogoSettings /></div>
         <div className="mt-7 grid gap-4 sm:grid-cols-2">
           {options.map(({ title, description, path, icon: Icon }) => (
             <Link key={path} to={path} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#D4AF37] hover:shadow-md">

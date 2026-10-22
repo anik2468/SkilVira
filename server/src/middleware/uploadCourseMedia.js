@@ -3,38 +3,40 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 
-const createUploader = (folder, types, maxSize) => {
-  const dir = path.resolve(process.cwd(), "uploads", "courses", folder);
-  fs.mkdirSync(dir, { recursive: true });
+const imageTypes = ["image/jpeg", "image/png", "image/webp"];
+const videoTypes = ["video/mp4", "video/webm", "video/quicktime"];
 
-  return multer({
-    storage: multer.diskStorage({
-      destination: (_req, _file, cb) => cb(null, dir),
-      filename: (_req, file, cb) => {
-        const ext = path.extname(file.originalname).toLowerCase();
-        cb(null, `${Date.now()}-${crypto.randomBytes(6).toString("hex")}${ext}`);
-      },
-    }),
-    fileFilter: (_req, file, cb) => {
-      if (!types.includes(file.mimetype)) {
-        const error = new Error("Unsupported file type.");
-        error.status = 400;
-        return cb(error);
-      }
-      cb(null, true);
+export const thumbnailUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (_req, file, callback) => {
+    if (!imageTypes.includes(file.mimetype)) {
+      const error = new Error("Unsupported thumbnail file type.");
+      error.status = 400;
+      return callback(error);
+    }
+    callback(null, true);
+  },
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+const videoDir = path.resolve(process.cwd(), "uploads", "courses", "videos");
+fs.mkdirSync(videoDir, { recursive: true });
+
+export const videoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => callback(null, videoDir),
+    filename: (_req, file, callback) => {
+      const extension = path.extname(file.originalname).toLowerCase();
+      callback(null, `${Date.now()}-${crypto.randomBytes(6).toString("hex")}${extension}`);
     },
-    limits: { fileSize: maxSize },
-  });
-};
-
-export const thumbnailUpload = createUploader(
-  "thumbnails",
-  ["image/jpeg", "image/png", "image/webp"],
-  5 * 1024 * 1024
-);
-
-export const videoUpload = createUploader(
-  "videos",
-  ["video/mp4", "video/webm", "video/quicktime"],
-  500 * 1024 * 1024
-);
+  }),
+  fileFilter: (_req, file, callback) => {
+    if (!videoTypes.includes(file.mimetype)) {
+      const error = new Error("Unsupported video file type.");
+      error.status = 400;
+      return callback(error);
+    }
+    callback(null, true);
+  },
+  limits: { fileSize: 500 * 1024 * 1024 },
+});

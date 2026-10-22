@@ -1,3 +1,4 @@
+import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from "./utils/passwordPolicy.js";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
@@ -15,6 +16,9 @@ const createControlAdmin = async () => {
     process.env.CONTROL_ADMIN_EMAIL || ""
   ).trim().toLowerCase();
   const password = process.env.CONTROL_ADMIN_PASSWORD;
+  if (password && !isStrongPassword(password)) {
+    throw new Error(PASSWORD_REQUIREMENT_MESSAGE);
+  }
   const resetExisting =
     process.env.CONTROL_ADMIN_RESET_PASSWORD === "true";
 

@@ -115,6 +115,12 @@ const paymentSchema = new mongoose.Schema(
     // MANUAL PAYMENT
     // =================================================
 
+    paymentMode: {
+      type: String,
+      enum: ["manual", "razorpay"],
+      index: true,
+    },
+
     paymentMethod: {
       type: String,
       enum: [

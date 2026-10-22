@@ -1,3 +1,4 @@
+import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from "../utils/passwordPolicy.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -74,6 +75,13 @@ export const register = async (
     // ========================================
     // ALLOWED ROLES
     // ========================================
+
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        success: false,
+        message: PASSWORD_REQUIREMENT_MESSAGE,
+      });
+    }
 
     const allowedRoles = [
       "student",
@@ -789,6 +797,13 @@ export const resetPassword = async (
       });
     }
 
+
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        success: false,
+        message: PASSWORD_REQUIREMENT_MESSAGE,
+      });
+    }
 
     user.password =
       await bcrypt.hash(

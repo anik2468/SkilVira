@@ -445,21 +445,16 @@ const Courses = () => {
                 >
                   {/* Thumbnail */}
                   <div className="relative h-48 overflow-hidden bg-gray-100">
-                    {imageUrl ? (
+                    <div className="absolute inset-0 flex items-center justify-center text-[#D4AF37]">
+                      <FiBookOpen size={42} />
+                    </div>
+                    {imageUrl && (
                       <img
                         src={imageUrl}
-                        alt={
-                          course?.title ||
-                          "Course"
-                        }
-                        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                        alt={course?.title || "Course"}
+                        onError={(event) => { event.currentTarget.style.display = "none"; }}
+                        className="relative z-10 h-full w-full object-cover transition duration-500 group-hover:scale-105"
                       />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[#D4AF37]">
-                        <FiBookOpen
-                          size={42}
-                        />
-                      </div>
                     )}
 
                     {course?.category && (

@@ -1,3 +1,5 @@
+import PlatformLogoSettings from "../../components/admin/PlatformLogoSettings.jsx";
+
 const Settings = () => {
   return (
     <div className="bg-white rounded-2xl shadow p-8">
@@ -5,6 +7,8 @@ const Settings = () => {
       <h1 className="text-3xl font-bold">
         Control Settings
       </h1>
+
+      <div className="mt-6"><PlatformLogoSettings /></div>
 
       <div className="space-y-5 mt-8">
 

@@ -1,3 +1,4 @@
+import { uploadImageBuffer } from "../utils/cloudinaryUpload.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import mongoose from "mongoose";
@@ -591,9 +592,10 @@ export const createManualPayment = async (req, res) => {
       });
     }
 
-    const screenshot = req.file.filename
-      ? `uploads/payments/${req.file.filename}`
-      : req.file.location || "";
+    const uploadedScreenshot = await uploadImageBuffer(req.file, {
+      folder: "skilvira/payment-proofs",
+    });
+    const screenshot = uploadedScreenshot.secure_url;
 
     const payment = await Payment.create({
       student,
@@ -624,7 +626,10 @@ export const createManualPayment = async (req, res) => {
       payment,
     });
   } catch (error) {
-    return sendError(res, error, "Unable to submit manual payment");
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.status ? error.message : "Unable to submit manual payment",
+    });
   }
 };
 
@@ -820,11 +825,22 @@ export const approveManualPayment = async (req, res) => {
       });
     }
 
-    if (payment.paymentMode !== "manual") {
+    // Backward compatibility for older records created before
+    // paymentMode was included in the Mongoose schema.
+    const isLegacyManualPayment =
+      !payment.paymentMode &&
+      Boolean(String(payment.paymentScreenshot || "").trim()) &&
+      Boolean(String(payment.transactionReference || "").trim());
+
+    if (payment.paymentMode !== "manual" && !isLegacyManualPayment) {
       return res.status(400).json({
         success: false,
         message: "This endpoint is for manual payments only",
       });
+    }
+
+    if (isLegacyManualPayment) {
+      payment.paymentMode = "manual";
     }
 
     payment.verifiedBy = getUserId(req);

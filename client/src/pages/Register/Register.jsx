@@ -1,3 +1,4 @@
+import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from "../../utils/passwordPolicy.js";
 import {
   Link,
   useNavigate,
@@ -190,6 +191,10 @@ const Register = () => {
 
     if (missingRoleFields) {
       return alert("Please complete all required role-specific fields.");
+    }
+
+    if (!isStrongPassword(formData.password)) {
+      return alert(PASSWORD_REQUIREMENT_MESSAGE);
     }
 
     if (
@@ -385,7 +390,7 @@ const Register = () => {
               type="password"
               value={formData.password}
               onChange={handleChange}
-              placeholder="Enter password"
+              placeholder="Min 8 chars, uppercase first, special character"
               required
             />
 

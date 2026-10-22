@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import PlatformLogoSettings from "../../components/admin/PlatformLogoSettings.jsx";
 import {
   FiBell,
   FiCheck,
@@ -180,6 +181,8 @@ const Settings = () => {
             </div>
           </div>
         </section>
+
+        <PlatformLogoSettings />
 
         {/* STATUS */}
         <div className="grid gap-4 md:grid-cols-3">

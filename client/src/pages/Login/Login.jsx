@@ -189,13 +189,11 @@ const Login = () => {
   };
 
   const googleLogin = () => {
-    window.location.href =
-      `${API_URL}/auth/google`;
+    setError("Google sign-in is not configured yet. Please use email and password.");
   };
 
   const linkedinLogin = () => {
-    window.location.href =
-      `${API_URL}/auth/linkedin`;
+    setError("Linkedin sign-in is not configured yet. Please use email and password.");
   };
 
   return (

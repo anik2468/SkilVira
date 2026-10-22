@@ -393,6 +393,7 @@ const CourseDetails = () => {
           {thumbnail ? (
             <img
               src={thumbnail}
+              onError={(event) => { event.currentTarget.style.display = "none"; }}
               alt={
                 course?.title ||
                 "Course"

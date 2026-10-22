@@ -1,3 +1,4 @@
+import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from "../../utils/passwordPolicy.js";
 import { API_URL } from "../../services/urlConfig.js";
 import { useState } from "react";
 import {
@@ -70,7 +71,7 @@ const ResetPassword = () => {
       return;
     }
 
-    if (password.length < 6) {
+    if (!isStrongPassword(password)) {
       setError(
         "Password must contain at least 6 characters."
       );

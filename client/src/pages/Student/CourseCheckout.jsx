@@ -169,6 +169,7 @@ const CourseCheckout = () => {
                     : `${String(import.meta.env.VITE_API_URL || API_URL).replace(/\/api\/?$/, "").replace(/\/$/, "")}/${course.thumbnail.replace(/^\/+/, "")}`
                 }
                 alt={course.title}
+                onError={(event) => { event.currentTarget.style.display = "none"; }}
                 className="h-48 w-full object-cover sm:h-56"
               />
             )}

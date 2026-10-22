@@ -7,6 +7,7 @@ const platformSettingSchema = new mongoose.Schema(
       default: "SkilVira",
       trim: true,
     },
+    platformLogoUrl: { type: String, default: "", trim: true },
     maintenance: {
       type: Boolean,
       default: false,

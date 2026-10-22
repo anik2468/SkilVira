@@ -1,3 +1,4 @@
+import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from "../utils/passwordPolicy.js";
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import Internship from "../models/Internship.js";
@@ -241,11 +242,14 @@ export const createUser = async (req,res)=>{
 
 
 
-    const hashedPassword =
-      await bcrypt.hash(
-        password,
-        10
-      );
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        success: false,
+        message: PASSWORD_REQUIREMENT_MESSAGE,
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
 
 
 

@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import api from "../../services/api.js";
 
 import {
   FiArrowRight,
@@ -23,6 +24,19 @@ const navItems = [
 const Navbar = () => {
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const [platformLogoUrl, setPlatformLogoUrl] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    api.get("/platform-settings")
+      .then(({ data }) => {
+        if (active) setPlatformLogoUrl(data?.settings?.platformLogoUrl || "");
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const isActive = (path) =>
     location.pathname === path;
@@ -45,21 +59,29 @@ const Navbar = () => {
             onClick={closeMenu}
             className="group flex shrink-0 items-center gap-3"
           >
-            <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-[#D4AF37] text-base font-black text-black shadow-[0_10px_25px_rgba(212,175,55,0.20)] transition-transform duration-300 group-hover:scale-105">
-              S
-
-              <span className="absolute -bottom-1 -right-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-black" />
-            </div>
-
-            <div className="block min-w-0">
-              <p className="text-xl font-black tracking-tight text-slate-950">
-                Skil<span className="text-[#D4AF37]">Vira</span>
-              </p>
-
-              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
-                Empowering Careers
-              </p>
-            </div>
+            {platformLogoUrl ? (
+              <img
+                src={platformLogoUrl}
+                alt="SkilVira logo"
+                onError={() => setPlatformLogoUrl("")}
+                className="h-11 max-w-[150px] object-contain"
+              />
+            ) : (
+              <>
+                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#D4AF37] text-base font-black text-black shadow-[0_10px_25px_rgba(212,175,55,0.20)] transition-transform duration-300 group-hover:scale-105">
+                  S
+                  <span className="absolute -bottom-1 -right-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-black" />
+                </div>
+                <div className="block min-w-0">
+                  <p className="text-base font-black tracking-tight text-slate-950 sm:text-xl">
+                    Skil<span className="text-[#D4AF37]">Vira</span>
+                  </p>
+                  <p className="hidden text-[9px] font-black uppercase tracking-[0.16em] text-slate-400 sm:block">
+                    Empowering Careers
+                  </p>
+                </div>
+              </>
+            )}
           </Link>
 
           {/* Desktop Navigation */}

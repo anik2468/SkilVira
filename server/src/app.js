@@ -23,6 +23,7 @@ import liveClassRoutes from "./routes/liveClassRoutes.js";
 import lessonRoutes from "./routes/lessonRoutes.js";
 import referralRoutes from "./routes/referralRoutes.js";
 import companySettingRoutes from "./routes/companySettingRoutes.js";
+import platformSettingsRoutes from "./routes/platformSettingsRoutes.js";
 import communityRoutes from "./routes/communityRoutes.js";
 import companyRoutes from "./routes/companyRoutes.js";
 import universityRoutes from "./routes/universityRoutes.js";
@@ -125,6 +126,7 @@ app.use("/api/communities", communityRoutes);
 
 // Company/platform settings
 app.use("/api/company-settings", companySettingRoutes);
+app.use("/api/platform-settings", platformSettingsRoutes);
 
 // Notifications
 app.use("/api/notifications", notificationRoutes);

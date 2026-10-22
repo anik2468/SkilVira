@@ -1,4 +1,5 @@
 import express from "express";
+import { uploadImageBuffer } from "../utils/cloudinaryUpload.js";
 
 import auth from "../middleware/auth.js";
 import upload from "../middleware/upload.js";
@@ -126,7 +127,7 @@ router.post(
   auth,
   requireStaff,
   thumbnailUpload.single("thumbnail"),
-  (req, res) => {
+  async (req, res) => {
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -134,10 +135,23 @@ router.post(
       });
     }
 
-    return res.status(201).json({
-      success: true,
-      url: `/uploads/courses/thumbnails/${req.file.filename}`,
-    });
+    try {
+      const uploaded = await uploadImageBuffer(req.file, {
+        folder: "skilvira/course-thumbnails",
+      });
+      return res.status(201).json({
+        success: true,
+        url: uploaded.secure_url,
+        path: uploaded.secure_url,
+      });
+    } catch (error) {
+      return res.status(error.status || 502).json({
+        success: false,
+        message: error.status === 503
+          ? error.message
+          : "Unable to store the thumbnail. Please try again.",
+      });
+    }
   }
 );
 

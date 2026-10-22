@@ -1,3 +1,4 @@
+import { isStrongPassword, PASSWORD_REQUIREMENT_MESSAGE } from "../utils/passwordPolicy.js";
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 
@@ -24,10 +25,10 @@ const changePassword = async (req, res) => {
       });
     }
 
-    if (String(newPassword).length < 6) {
+    if (!isStrongPassword(newPassword)) {
       return res.status(400).json({
         success: false,
-        message: "New password must contain at least 6 characters.",
+        message: PASSWORD_REQUIREMENT_MESSAGE,
       });
     }
 

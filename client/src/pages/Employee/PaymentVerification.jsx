@@ -781,6 +781,7 @@ const PaymentVerification = () => {
                       src={getFileUrl(
                         selectedPayment?.paymentScreenshot
                       )}
+                        onError={(event) => { event.currentTarget.style.display = "none"; }}
                       alt="Payment screenshot"
                       className="max-h-[600px] w-full object-contain"
                     />
