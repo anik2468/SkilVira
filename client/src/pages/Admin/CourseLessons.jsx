@@ -29,9 +29,11 @@ const CourseLessons = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const liveClassBasePath = location.pathname.startsWith("/control")
-    ? "/control/live-class/"
-    : "/employee/live-class/";
+  const liveClassBasePath = location.pathname.startsWith("/admin")
+    ? "/admin/live-class/"
+    : location.pathname.startsWith("/control")
+      ? "/control/live-class/"
+      : "/employee/live-class/";
 
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,8 @@ const CourseLessons = () => {
   const [videoSource, setVideoSource] = useState("link");
   const [videoFile, setVideoFile] = useState(null);
   const [videoInputKey, setVideoInputKey] = useState(0);
+  const [notesFile, setNotesFile] = useState(null);
+  const [notesInputKey, setNotesInputKey] = useState(0);
 
   const [liveClasses, setLiveClasses] = useState([]);
   const [liveClassTitle, setLiveClassTitle] = useState("");
@@ -249,8 +253,8 @@ const CourseLessons = () => {
       return;
     }
 
-    if (!String(form.notesUrl || "").trim()) {
-      setError("Notes are required. Please add the notes URL.");
+    if (!String(form.notesUrl || "").trim() && !notesFile) {
+      setError("Upload a notes PDF or provide a Notes URL.");
       return;
     }
 
@@ -289,13 +293,30 @@ const CourseLessons = () => {
         }
       }
 
+      let uploadedNotesUrl = String(form.notesUrl || "").trim();
+
+      if (notesFile) {
+        const notesData = new FormData();
+        notesData.append("pdf", notesFile);
+
+        const { data: notesUploadResult } = await api.post(
+          "/upload/course-notes",
+          notesData
+        );
+
+        uploadedNotesUrl = notesUploadResult?.url || "";
+
+        if (!uploadedNotesUrl) {
+          throw new Error("Notes PDF upload did not return a URL.");
+        }
+      }
+
       await createLesson({
         title: form.title.trim(),
         description:
           form.description.trim(),
         videoUrl: uploadedVideoUrl,
-        notesUrl:
-          form.notesUrl.trim(),
+        notesUrl: uploadedNotesUrl,
         duration:
           form.duration.trim(),
         course: id,
@@ -313,6 +334,8 @@ const CourseLessons = () => {
       });
 
       setVideoFile(null);
+      setNotesFile(null);
+      setNotesInputKey((value) => value + 1);
       setVideoSource("link");
       setVideoInputKey((value) => value + 1);
 
@@ -366,12 +389,26 @@ const CourseLessons = () => {
       questions = assessmentQuestions.map((question) => {
         const options = question.type === "fill_blank"
           ? []
-          : question.optionsText.split("\\n").map((item) => item.trim()).filter(Boolean);
+          : String(question.optionsText || "")
+              .split(/\r?\n/)
+              .map((item) => item.trim())
+              .filter(Boolean);
 
-        const correctAnswers = question.correctAnswersText
-          .split("\\n")
+        const rawCorrectAnswers = String(question.correctAnswersText || "")
+          .split(/\r?\n/)
           .map((item) => item.trim())
           .filter(Boolean);
+
+        // Accept option text or its 1-based number: 1, 2, 3...
+        const correctAnswers = rawCorrectAnswers.map((answer) => {
+          if (/^\d+$/.test(answer)) {
+            const index = Number(answer) - 1;
+            if (index >= 0 && options[index] !== undefined) {
+              return options[index];
+            }
+          }
+          return answer;
+        });
 
         const marks = Number(question.marks);
         calculatedTotal += Number.isFinite(marks) ? marks : 0;
@@ -859,14 +896,63 @@ const CourseLessons = () => {
                 )}
               </div>
 
-              <Field
-                label="Notes URL"
-                name="notesUrl"
-                value={form.notesUrl}
-                onChange={handleChange}
-                placeholder="https://.../notes.pdf"
-                icon={<FiFileText />}
-              />
+              <div className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-800">
+                    Notes PDF
+                  </label>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Upload a PDF for students to read. PDF only · Maximum 50 MB.
+                  </p>
+                </div>
+
+                <input
+                  key={notesInputKey}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] || null;
+
+                    if (file && file.size > 50 * 1024 * 1024) {
+                      setError("Notes PDF must be 50 MB or smaller.");
+                      setNotesFile(null);
+                      event.target.value = "";
+                      return;
+                    }
+
+                    if (file && !/\.pdf$/i.test(file.name)) {
+                      setError("Please select a PDF file.");
+                      setNotesFile(null);
+                      event.target.value = "";
+                      return;
+                    }
+
+                    setError("");
+                    setNotesFile(file);
+                  }}
+                  className="block w-full rounded-xl border border-gray-200 bg-white p-3 text-sm"
+                />
+
+                {notesFile && (
+                  <p className="text-sm font-medium text-green-700">
+                    Selected: {notesFile.name} · {(notesFile.size / (1024 * 1024)).toFixed(2)} MB
+                  </p>
+                )}
+
+                <div className="border-t border-gray-200 pt-3">
+                  <p className="mb-2 text-xs font-bold text-gray-500">
+                    Or use an existing Notes / resource URL
+                  </p>
+                  <Field
+                    label="Notes URL"
+                    name="notesUrl"
+                    value={form.notesUrl}
+                    onChange={handleChange}
+                    placeholder="https://... (optional when PDF is uploaded)"
+                    icon={<FiFileText />}
+                  />
+                </div>
+              </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
@@ -1028,6 +1114,7 @@ const CourseLessons = () => {
                 className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
               >
                 <option value="assignment">Assignment</option>
+                <option value="dpp">DPP / Daily Practice Problems</option>
                 <option value="quiz">Quiz</option>
                 <option value="test">Test / Exam</option>
               </select>

@@ -1,4 +1,5 @@
 import express from "express";
+import auth from "../middleware/auth.js";
 
 import uploadCertificate from "../middleware/uploadCertificate.js";
 
@@ -13,12 +14,28 @@ import {
 
 const router = express.Router();
 
+const requireControl = (req, res, next) => {
+  const role = String(req.user?.role || "").toLowerCase();
+
+  if (role !== "control") {
+    return res.status(403).json({
+      success: false,
+      message: "Only Super Admin can manage certificate templates.",
+    });
+  }
+
+  return next();
+};
+
+
 // =====================================================
 // CREATE
 // =====================================================
 
 router.post(
   "/",
+  auth,
+  requireControl,
   uploadCertificate.single(
     "certificateTemplate"
   ),
@@ -59,6 +76,8 @@ router.get(
 
 router.put(
   "/:id",
+  auth,
+  requireControl,
   uploadCertificate.single(
     "certificateTemplate"
   ),
@@ -71,6 +90,8 @@ router.put(
 
 router.delete(
   "/:id",
+  auth,
+  requireControl,
   deleteTemplate
 );
 

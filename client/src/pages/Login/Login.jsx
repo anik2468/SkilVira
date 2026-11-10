@@ -102,6 +102,12 @@ const Login = () => {
         );
         break;
 
+      case "admin":
+        navigate(
+          "/admin/dashboard"
+        );
+        break;
+
       case "control":
         navigate(
           "/control/dashboard"

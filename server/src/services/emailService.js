@@ -382,3 +382,52 @@ export const sendReportEmail = async ({
   });
 
 };
+
+
+// =====================================================
+// PASSWORD RESET EMAIL
+// =====================================================
+
+export const sendPasswordResetEmail = async ({
+  to,
+  resetURL,
+}) => {
+  if (!to || !resetURL) {
+    throw new Error("Recipient and reset URL are required.");
+  }
+
+  const transporter = createTransporter();
+
+  const safeResetURL = String(resetURL)
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to,
+    subject: "Reset your SkilVira password",
+    text: `You requested a SkilVira password reset.
+
+Reset your password using this link:
+${resetURL}
+
+This link expires in 15 minutes. If you did not request this, ignore this email.`,
+    html: `
+      <div style="max-width:600px;margin:auto;padding:28px;font-family:Arial,sans-serif;color:#1f2937;border:1px solid #e5e7eb;border-radius:14px;">
+        <h2 style="color:#b58b19;">SkilVira Password Reset</h2>
+        <p>We received a request to reset your SkilVira account password.</p>
+        <p>
+          <a href="${safeResetURL}"
+             style="display:inline-block;padding:13px 22px;background:#D4AF37;color:#111827;text-decoration:none;border-radius:8px;font-weight:bold;">
+            Reset Password
+          </a>
+        </p>
+        <p>This link expires in <strong>15 minutes</strong>.</p>
+        <p>If you did not request this password reset, you can safely ignore this email.</p>
+        <p style="color:#6b7280;font-size:12px;">SkilVira Security Team</p>
+      </div>
+    `,
+  });
+};

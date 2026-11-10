@@ -679,3 +679,157 @@ export const createSkilViraInternship = async (
 
 
 };
+
+/* =========================================
+   ADMIN INTERNSHIP MANAGEMENT
+   ========================================= */
+
+const ADMIN_INTERNSHIP_FIELDS = [
+  "title",
+  "company",
+  "companyLogo",
+  "companyWebsite",
+  "internshipImage",
+  "category",
+  "internshipType",
+  "workMode",
+  "location",
+  "duration",
+  "price",
+  "openings",
+  "lastDate",
+  "skills",
+  "description",
+  "responsibilities",
+  "requirements",
+  "perks",
+  "benefits",
+];
+
+export const getAdminInternships = async (req, res) => {
+  try {
+    const internships = await Internship.find({
+      isDeleted: { $ne: true },
+    })
+      .populate("recruiter", "name email")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: internships.length,
+      internships,
+    });
+  } catch (error) {
+    console.error("ADMIN GET INTERNSHIPS:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const createAdminInternship = async (req, res) => {
+  try {
+    const data = {};
+
+    for (const field of ADMIN_INTERNSHIP_FIELDS) {
+      if (req.body?.[field] !== undefined) {
+        data[field] = req.body[field];
+      }
+    }
+
+    const internship = await Internship.create({
+      ...data,
+      recruiter: req.user.id || req.user._id,
+      sourceType: "skilvira",
+      approvalStatus: "Approved",
+      status: "Open",
+      featured: false,
+      views: 0,
+      applicants: 0,
+      bookmarks: 0,
+      isDeleted: false,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Internship created successfully.",
+      internship,
+    });
+  } catch (error) {
+    console.error("ADMIN CREATE INTERNSHIP:", error);
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const updateAdminInternship = async (req, res) => {
+  try {
+    const internship = await Internship.findOne({
+      _id: req.params.id,
+      isDeleted: { $ne: true },
+    });
+
+    if (!internship) {
+      return res.status(404).json({
+        success: false,
+        message: "Internship not found.",
+      });
+    }
+
+    for (const field of ADMIN_INTERNSHIP_FIELDS) {
+      if (req.body?.[field] !== undefined) {
+        internship[field] = req.body[field];
+      }
+    }
+
+    await internship.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Internship updated successfully.",
+      internship,
+    });
+  } catch (error) {
+    console.error("ADMIN UPDATE INTERNSHIP:", error);
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const deleteAdminInternship = async (req, res) => {
+  try {
+    const internship = await Internship.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        isDeleted: { $ne: true },
+      },
+      {
+        $set: { isDeleted: true },
+      },
+      { new: true }
+    );
+
+    if (!internship) {
+      return res.status(404).json({
+        success: false,
+        message: "Internship not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Internship deleted successfully.",
+    });
+  } catch (error) {
+    console.error("ADMIN DELETE INTERNSHIP:", error);
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

@@ -1,5 +1,9 @@
 import api from "./api";
 
+const isLimitedAdminPanel = () =>
+  typeof window !== "undefined" &&
+  window.location.pathname.startsWith("/admin");
+
 
 // =====================================================
 // APPLICATION SERVICE
@@ -165,9 +169,10 @@ export const getApplicationDetails =
       );
     }
 
-    const { data } = await api.get(
-      `/applications/details/${id}`
-    );
+    const endpoint = isLimitedAdminPanel()
+      ? `/admin/applications/${id}`
+      : `/applications/details/${id}`;
+    const { data } = await api.get(endpoint);
 
     return data;
   };
@@ -191,10 +196,12 @@ export const updateApplicationStatus =
       );
     }
 
-    const { data } = await api.put(
-      `/applications/status/${id}`,
-      body
-    );
+    if (isLimitedAdminPanel()) {
+      const { data } = await api.patch(`/admin/applications/${id}/status`, body);
+      return data;
+    }
+
+    const { data } = await api.put(`/applications/status/${id}`, body);
 
     return data;
   };
@@ -211,9 +218,8 @@ export const updateApplicationStatus =
 
 export const getAllApplications =
   async () => {
-    const { data } = await api.get(
-      "/applications"
-    );
+    const endpoint = isLimitedAdminPanel() ? "/admin/applications" : "/applications";
+    const { data } = await api.get(endpoint);
 
     return data;
   };

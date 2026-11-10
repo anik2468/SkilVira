@@ -1,5 +1,6 @@
 import EmployeeProfile from "../models/EmployeeProfile.js";
 import User from "../models/User.js";
+import Company from "../models/Company.js";
 import Internship from "../models/Internship.js";
 
 const EMPLOYEE_PROFILE_EDITABLE_FIELDS = [
@@ -276,6 +277,12 @@ export const employeeDashboard = async (
 
       });
 
+    const totalUsers = await User.countDocuments({
+      isDeleted: { $ne: true },
+    });
+
+    const totalCompanies = await Company.countDocuments({});
+
 
 
     res.status(200).json({
@@ -300,6 +307,8 @@ export const employeeDashboard = async (
         pendingAmbassadors,
 
         pendingInternships,
+        totalUsers,
+        totalCompanies,
 
       },
 
@@ -1032,52 +1041,45 @@ async (req,res)=>{
 // ======================================
 // Get All Platform Users
 // ======================================
-export const getAllUsers = async(req,res)=>{
+export const getAllUsers = async (req, res) => {
+  try {
+    const actorRole = String(req.user?.role || "").toLowerCase();
 
-try{
+    if (!["employee", "control"].includes(actorRole)) {
+      return res.status(403).json({
+        success: false,
+        message: "Employee or Super Admin access is required.",
+      });
+    }
 
-const users =
-await User.find({
+    const filter = {
+      isDeleted: { $ne: true },
+    };
 
-isDeleted:false,
+    // Employees may only see normal platform users.
+    if (actorRole === "employee") {
+      filter.role = {
+        $in: ["student", "recruiter", "ambassador"],
+      };
+    }
 
-})
-.select(
-"-password -refreshToken"
-)
-.sort({
+    const users = await User.find(filter)
+      .select("-password -refreshToken -resetPasswordToken -resetPasswordExpire")
+      .sort({ createdAt: -1 })
+      .lean();
 
-createdAt:-1,
-
-});
-
-
-res.status(200).json({
-
-success:true,
-
-count:users.length,
-
-users,
-
-});
-
-
-}catch(error){
-
-console.error(error);
-
-
-res.status(500).json({
-
-success:false,
-
-message:error.message,
-
-});
-
-}
-
+    return res.status(200).json({
+      success: true,
+      count: users.length,
+      users,
+    });
+  } catch (error) {
+    console.error("GET ALL USERS ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load users.",
+    });
+  }
 };
 
 

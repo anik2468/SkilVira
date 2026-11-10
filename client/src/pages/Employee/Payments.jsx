@@ -90,7 +90,7 @@ const Payments = () => {
       setError("");
 
       await api.put(
-        `/payments/approve/${id}`
+        `/payments/${id}/approve`
       );
 
       await loadPayments(true);

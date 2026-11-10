@@ -71,9 +71,14 @@ export const getDashboard = async (req, res) => {
 // ======================================
 export const getUsers = async (req, res) => {
   try {
-    const users = await User.find().sort({
-      createdAt: -1,
-    });
+    const users = await User.find({
+      isDeleted: { $ne: true },
+    })
+      .select(
+        "-password -refreshToken -resetPasswordToken -resetPasswordExpire"
+      )
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.status(200).json({
       success: true,
@@ -208,6 +213,7 @@ export const createUser = async (req,res)=>{
       "recruiter",
       "ambassador",
       "employee",
+      "admin",
     ];
 
 

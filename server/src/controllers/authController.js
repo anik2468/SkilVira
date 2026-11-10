@@ -5,6 +5,7 @@ import crypto from "crypto";
 
 import User from "../models/User.js";
 import ActivityLog from "../models/ActivityLog.js";
+import { sendPasswordResetEmail } from "../services/emailService.js";
 
 import StudentProfile from "../models/StudentProfile.js";
 import RecruiterProfile from "../models/RecruiterProfile.js";
@@ -645,104 +646,118 @@ export const login = async (
 };
 
 
-// ========================================
-// FORGOT PASSWORD
-// ========================================
+// ===================================
+export const forgotPassword = async (req, res) => {
+  const genericResponse = {
+    success: true,
+    message:
+      "If an account with that email exists, a password reset link has been sent. Please check your inbox and spam folder.",
+  };
 
-export const forgotPassword = async (
-  req,
-  res
-) => {
   try {
-    const {
-      email,
-    } = req.body;
+    const email =
+      typeof req.body?.email === "string"
+        ? req.body.email.trim().toLowerCase()
+        : "";
 
-
-    if (!email) {
+    if (!email || email.length > 254) {
       return res.status(400).json({
         success: false,
-        message:
-          "Email is required.",
+        message: "Please enter a valid email address.",
       });
     }
 
+    // Use FRONTEND_URL first; retain CLIENT_URL compatibility.
+    const configuredFrontendUrl =
+      process.env.FRONTEND_URL ||
+      process.env.CLIENT_URL ||
+      (process.env.NODE_ENV !== "production"
+        ? "http://localhost:5173"
+        : "");
 
-    const user =
-      await User.findOne({
-        email:
-          email
-            .trim()
-            .toLowerCase(),
-      });
+    if (!configuredFrontendUrl) {
+      throw new Error("FRONTEND_URL is not configured.");
+    }
 
+    const frontend = new URL(configuredFrontendUrl);
 
+    if (
+      process.env.NODE_ENV === "production" &&
+      frontend.protocol !== "https:"
+    ) {
+      throw new Error("Production FRONTEND_URL must use HTTPS.");
+    }
+
+    if (frontend.search || frontend.hash) {
+      throw new Error("FRONTEND_URL must not contain query or fragment.");
+    }
+
+    const frontendBase =
+      `${frontend.origin}${frontend.pathname}`.replace(/\/+$/, "");
+
+    // No role restriction: all eligible User roles use this flow.
+    const user = await User.findOne({
+      email,
+      isDeleted: { $ne: true },
+    });
+
+    // Same response for unknown email addresses.
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "User not found.",
-      });
+      return res.status(200).json(genericResponse);
     }
 
+    const resetToken = crypto.randomBytes(32).toString("hex");
 
-    const resetToken =
-      crypto
-        .randomBytes(32)
-        .toString("hex");
-
-
-    user.resetPasswordToken =
-      crypto
-        .createHash("sha256")
-        .update(resetToken)
-        .digest("hex");
-
+    user.resetPasswordToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
 
     user.resetPasswordExpire =
-      Date.now() +
-      15 * 60 * 1000;
-
+      new Date(Date.now() + 15 * 60 * 1000);
 
     await user.save();
 
-
-    const frontendUrl =
-      process.env.CLIENT_URL ||
-      "http://localhost:5173";
-
-
     const resetURL =
-      `${frontendUrl}/reset-password/${resetToken}`;
+      `${frontendBase}/reset-password/${resetToken}`;
 
+    try {
+      await sendPasswordResetEmail({
+        to: user.email,
+        resetURL,
+      });
+    } catch (mailError) {
+      // Invalidate the token if delivery fails.
+      user.resetPasswordToken = "";
+      user.resetPasswordExpire = undefined;
 
-    return res.status(200).json({
-      success: true,
+      try {
+        await user.save();
+      } catch (cleanupError) {
+        console.error(
+          "Password reset token cleanup failed:",
+          cleanupError.message
+        );
+      }
 
-      message:
-        "Password reset link generated.",
+      console.error(
+        "Password reset email delivery failed:",
+        mailError.message
+      );
+    }
 
-      resetURL,
-    });
+    // Never expose the raw reset token or reset URL in the API response.
+    return res.status(200).json(genericResponse);
 
   } catch (error) {
-    console.error(
-      "Forgot Password Error:",
-      error
-    );
-
+    console.error("Forgot Password Error:", error.message);
 
     return res.status(500).json({
       success: false,
-
-      message:
-        error.message ||
-        "Failed to generate reset link.",
+      message: "Unable to process password reset right now. Please try again later.",
     });
   }
 };
-
-
 // ========================================
 // RESET PASSWORD
 // ========================================

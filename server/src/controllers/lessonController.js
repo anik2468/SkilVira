@@ -1,4 +1,6 @@
 import Lesson from "../models/Lesson.js";
+import Enrollment from "../models/Enrollment.js";
+import { createNotification } from "../services/notificationService.js";
 
 const STAFF_ROLES = ["employee", "control", "admin", "superadmin"];
 
@@ -12,6 +14,48 @@ const sameAnswers = (actual, expected) => {
   const a = actual.map(cleanValue).filter(Boolean).sort();
   const e = expected.map(cleanValue).filter(Boolean).sort();
   return a.length === e.length && a.every((value, i) => value === e[i]);
+};
+
+
+const notifyEnrolledStudentsAboutContent = async ({
+  courseId,
+  contentTitle,
+  contentType,
+}) => {
+  try {
+    const students = await Enrollment.distinct("student", {
+      course: courseId,
+      status: { $in: ["Active", "Completed"] },
+      isDeleted: { $ne: true },
+    });
+
+    const results = await Promise.allSettled(
+      students.map((recipient) =>
+        createNotification({
+          recipient,
+          type: "course",
+          title: "New course content available",
+          message: `${contentType}: "${contentTitle}" is available in your enrolled course.`,
+          referenceId: courseId,
+          referenceModel: "Course",
+          link: `/student/learn/${courseId}`,
+        })
+      )
+    );
+
+    const failed = results.filter(
+      (result) => result.status === "rejected"
+    ).length;
+
+    if (failed) {
+      console.error(
+        `COURSE CONTENT NOTIFICATIONS: failed=${failed}, total=${students.length}`
+      );
+    }
+  } catch (error) {
+    // Notification errors must not undo successful content creation.
+    console.error("COURSE CONTENT NOTIFICATION ERROR:", error.message);
+  }
 };
 
 export const createLesson = async (req, res) => {
@@ -38,7 +82,16 @@ export const createLesson = async (req, res) => {
       notesUrl: String(notesUrl).trim(),
       videoUrl: String(req.body.videoUrl || "").trim(),
       course,
+      createdBy: req.user?._id || req.user?.id || req.user?.userId || null,
     });
+
+    if (lesson.isPublished !== false) {
+      await notifyEnrolledStudentsAboutContent({
+        courseId: lesson.course,
+        contentTitle: lesson.title,
+        contentType: "New lesson",
+      });
+    }
 
     return res.status(201).json({
       success: true,
@@ -56,17 +109,66 @@ export const createLesson = async (req, res) => {
 
 export const getCourseLessons = async (req, res) => {
   try {
+    const role = String(req.user?.role || "").toLowerCase();
+    const staff = isStaff(req);
+    const courseId = req.params.courseId;
+    const userId = req.user?._id || req.user?.id || req.user?.userId;
+
+    if (!staff && role !== "student") {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to access course lessons.",
+      });
+    }
+
+    if (role === "student") {
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: "Please log in to access course lessons.",
+        });
+      }
+
+      const enrollment = await Enrollment.findOne({
+        student: userId,
+        course: courseId,
+        status: { $in: ["Active", "Completed"] },
+        isDeleted: { $ne: true },
+      }).select("_id");
+
+      if (!enrollment) {
+        return res.status(403).json({
+          success: false,
+          message: "An active course enrollment is required.",
+        });
+      }
+    }
+
     const lessons = await Lesson.find({
-      course: req.params.courseId,
+      course: courseId,
       isPublished: true,
     }).sort({ order: 1 }).lean();
 
-    const staff = isStaff(req);
     const safeLessons = lessons.map((lesson) => {
       lesson.assessments = (lesson.assessments || [])
         .filter((assessment) => staff || assessment.isPublished)
         .map((assessment) => {
           if (!staff) {
+            const ownAttempts = (assessment.attempts || [])
+              .filter((attempt) => String(attempt.user) === String(userId))
+              .sort((a, b) =>
+                new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0)
+              );
+
+            assessment.studentAttemptCount = ownAttempts.length;
+            assessment.studentAttempts = ownAttempts.map((attempt) => ({
+              status: attempt.status,
+              submittedAt: attempt.submittedAt,
+              score: attempt.score,
+              maxMarks: attempt.maxMarks,
+              feedback: attempt.feedback,
+            }));
+
             delete assessment.attempts;
             assessment.questions = (assessment.questions || []).map((question) => {
               delete question.correctAnswers;
@@ -88,6 +190,7 @@ export const getCourseLessons = async (req, res) => {
   }
 };
 
+
 export const createAssessment = async (req, res) => {
   try {
     const { lessonId } = req.params;
@@ -96,7 +199,7 @@ export const createAssessment = async (req, res) => {
       negativeMarking, maxAttempts, totalMarks, questions
     } = req.body || {};
 
-    if (!title?.trim() || !["assignment", "quiz", "test"].includes(type)) {
+    if (!title?.trim() || !["assignment", "quiz", "test", "dpp"].includes(type)) {
       return res.status(400).json({
         success: false,
         message: "Assessment title and a valid type are required.",
@@ -181,9 +284,16 @@ export const createAssessment = async (req, res) => {
       isPublished: true,
     });
 
-    await lesson.save();
     const assessment = lesson.assessments[lesson.assessments.length - 1];
+    await lesson.save();
 
+    if (assessment.isPublished !== false) {
+      await notifyEnrolledStudentsAboutContent({
+        courseId: lesson.course,
+        contentTitle: assessment.title,
+        contentType: assessment.type,
+      });
+    }
     return res.status(201).json({
       success: true,
       message: "Assessment created successfully.",
@@ -251,7 +361,20 @@ export const submitAssessment = async (req, res) => {
       return res.status(201).json({
         success: true,
         message: "Assignment submitted for grading.",
-        result: { attemptId: attempt._id, status: attempt.status },
+        attemptCount: previousAttempts.length + 1,
+        attempt: {
+          status: attempt.status,
+          submittedAt: attempt.submittedAt,
+          score: attempt.score,
+          maxMarks: attempt.maxMarks,
+          feedback: attempt.feedback,
+        },
+        result: {
+          attemptId: attempt._id,
+          status: attempt.status,
+          submittedAt: attempt.submittedAt,
+          maxMarks: attempt.maxMarks,
+        },
       });
     }
 
@@ -281,14 +404,24 @@ export const submitAssessment = async (req, res) => {
       status: "graded",
     });
     await lesson.save();
+    const savedAttempt = assessment.attempts[assessment.attempts.length - 1];
 
     return res.status(201).json({
       success: true,
       message: "Assessment submitted.",
+      attemptCount: previousAttempts.length + 1,
+      attempt: {
+        status: savedAttempt.status,
+        submittedAt: savedAttempt.submittedAt,
+        score: savedAttempt.score,
+        maxMarks: savedAttempt.maxMarks,
+      },
       result: {
         score,
         totalMarks: assessment.totalMarks,
+        maxMarks: assessment.totalMarks,
         status: "graded",
+        submittedAt: savedAttempt.submittedAt,
       },
     });
   } catch (error) {

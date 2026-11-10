@@ -70,7 +70,7 @@ assessments: [{
   title: { type: String, required: true, trim: true },
   type: {
     type: String,
-    enum: ["assignment", "quiz", "test"],
+    enum: ["assignment", "quiz", "test", "dpp"],
     required: true
   },
   description: { type: String, default: "" },
@@ -78,6 +78,8 @@ assessments: [{
   totalMarks: { type: Number, default: 0, min: 0 },
   negativeMarking: { type: Number, default: 0, min: 0 },
   maxAttempts: { type: Number, default: 1, min: 1 },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
+
   isPublished: { type: Boolean, default: true },
   questions: [{
     prompt: { type: String, required: true },

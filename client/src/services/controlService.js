@@ -22,6 +22,10 @@ const getUserList = (response) => {
   return [];
 };
 
+const isLimitedAdminPanel = () =>
+  typeof window !== "undefined" &&
+  window.location.pathname.startsWith("/admin");
+
 // =====================================================
 // DASHBOARD
 // =====================================================
@@ -39,10 +43,8 @@ export const getDashboardStats = async () => {
 // =====================================================
 
 export const getUsers = async () => {
-  const { data } = await api.get(
-    "/control/users"
-  );
-
+  const endpoint = isLimitedAdminPanel() ? "/admin/users" : "/control/users";
+  const { data } = await api.get(endpoint);
   return data;
 };
 
@@ -58,32 +60,30 @@ export const getUserById = async (id) => {
 
 export const deleteUser = async (id) => {
   validateId(id, "User ID");
-
-  // This uses the soft-delete user controller.
-  const { data } = await api.delete(
-    `/users/${id}`
-  );
-
+  if (isLimitedAdminPanel()) {
+    throw new Error("Only Super Admin can permanently delete user accounts.");
+  }
+  const { data } = await api.delete(`/users/${id}`);
   return data;
 };
 
 export const blockUser = async (id) => {
   validateId(id, "User ID");
-
-  const { data } = await api.put(
-    `/users/block/${id}`
-  );
-
+  if (isLimitedAdminPanel()) {
+    const { data } = await api.patch(`/admin/users/${id}`, { status: "blocked" });
+    return data;
+  }
+  const { data } = await api.put(`/users/block/${id}`);
   return data;
 };
 
 export const unblockUser = async (id) => {
   validateId(id, "User ID");
-
-  const { data } = await api.put(
-    `/users/unblock/${id}`
-  );
-
+  if (isLimitedAdminPanel()) {
+    const { data } = await api.patch(`/admin/users/${id}`, { status: "active" });
+    return data;
+  }
+  const { data } = await api.put(`/users/unblock/${id}`);
   return data;
 };
 
@@ -102,21 +102,19 @@ export const getInternships = async (params = {}) => {
 
 export const approveInternship = async (id) => {
   validateId(id, "Internship ID");
-
-  const { data } = await api.put(
-    `/control/internships/${id}/approve`
-  );
-
+  const endpoint = isLimitedAdminPanel()
+    ? `/admin/internships/${id}/approve`
+    : `/control/internships/${id}/approve`;
+  const { data } = await api.put(endpoint);
   return data;
 };
 
 export const rejectInternship = async (id) => {
   validateId(id, "Internship ID");
-
-  const { data } = await api.put(
-    `/control/internships/${id}/reject`
-  );
-
+  const endpoint = isLimitedAdminPanel()
+    ? `/admin/internships/${id}/reject`
+    : `/control/internships/${id}/reject`;
+  const { data } = await api.put(endpoint);
   return data;
 };
 
@@ -136,21 +134,19 @@ export const deleteInternship = async (id) => {
 
 export const approveRecruiter = async (id) => {
   validateId(id, "Recruiter ID");
-
-  const { data } = await api.put(
-    `/users/recruiters/approve/${id}`
-  );
-
+  const endpoint = isLimitedAdminPanel()
+    ? `/admin/recruiters/${id}/approve`
+    : `/users/recruiters/approve/${id}`;
+  const { data } = await api.put(endpoint);
   return data;
 };
 
 export const rejectRecruiter = async (id) => {
   validateId(id, "Recruiter ID");
-
-  const { data } = await api.put(
-    `/users/recruiters/reject/${id}`
-  );
-
+  const endpoint = isLimitedAdminPanel()
+    ? `/admin/recruiters/${id}/reject`
+    : `/users/recruiters/reject/${id}`;
+  const { data } = await api.put(endpoint);
   return data;
 };
 

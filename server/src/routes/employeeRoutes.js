@@ -33,10 +33,10 @@ const getUserId = (req) =>
   String(req.user?.id || req.user?._id || "");
 
 const isControlRole = (req) =>
-  ["control", "admin", "superadmin", "super_admin"].includes(getRole(req));
+  getRole(req) === "control";
 
 const requireStaff = (req, res, next) => {
-  if (["employee", "control", "admin", "superadmin", "super_admin"].includes(getRole(req))) {
+  if (["employee", "control"].includes(getRole(req))) {
     return next();
   }
 

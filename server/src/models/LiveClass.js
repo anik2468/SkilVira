@@ -68,6 +68,20 @@ const liveQuizSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const attendanceSessionSchema = new mongoose.Schema(
+  {
+    student: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    joinedAt: { type: Date, default: Date.now, required: true },
+    leftAt: { type: Date, default: null },
+    durationSeconds: { type: Number, default: 0, min: 0 },
+  },
+  { timestamps: true }
+);
+
 const liveClassSchema = new mongoose.Schema(
   {
     course: {
@@ -125,6 +139,10 @@ const liveClassSchema = new mongoose.Schema(
     activeQuiz: {
       type: liveQuizSchema,
       default: null,
+    },
+    attendance: {
+      type: [attendanceSessionSchema],
+      default: [],
     },
     isDeleted: {
       type: Boolean,

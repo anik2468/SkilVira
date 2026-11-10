@@ -198,22 +198,13 @@ const generatedCertificateSchema =
 // trigger referral certificate issuance.
 // =====================================================
 
-generatedCertificateSchema.pre(
-  "save",
-  function (next) {
-    try {
-      this.$locals = this.$locals || {};
+generatedCertificateSchema.pre("save", function () {
+  this.$locals = this.$locals || {};
 
-      this.$locals.certificateJustApproved =
-        this.isModified("status") &&
-        this.status === "approved";
-
-      next();
-    } catch (error) {
-      next(error);
-    }
-  }
-);
+  this.$locals.certificateJustApproved =
+    this.isModified("status") &&
+    this.status === "approved";
+});
 
 
 // =====================================================

@@ -13,6 +13,20 @@ import {
 
 const router = express.Router();
 
+const requireControl = (req, res, next) => {
+  const role = String(req.user?.role || req.user?.userRole || "").toLowerCase();
+
+  if (role !== "control") {
+    return res.status(403).json({
+      success: false,
+      message: "Only Super Admin can change payment settings.",
+    });
+  }
+
+  return next();
+};
+
+
 
 // =====================================================
 // GET PAYMENT SETTINGS
@@ -32,6 +46,7 @@ router.get(
 router.put(
   "/",
   auth,
+  requireControl,
   updatePaymentSettings
 );
 
@@ -43,6 +58,7 @@ router.put(
 router.post(
   "/qr",
   auth,
+  requireControl,
   upload.single("qrCode"),
   uploadPaymentQR
 );
@@ -55,6 +71,7 @@ router.post(
 router.delete(
   "/qr",
   auth,
+  requireControl,
   removePaymentQR
 );
 

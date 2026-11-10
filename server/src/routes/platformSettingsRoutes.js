@@ -5,7 +5,7 @@ import auth from "../middleware/auth.js";
 import PlatformSetting from "../models/PlatformSetting.js";
 
 const router = express.Router();
-const allowedRoles = ["control", "admin", "employee", "superadmin"];
+const allowedRoles = ["control"];
 
 const upload = multer({
   storage: multer.memoryStorage(),

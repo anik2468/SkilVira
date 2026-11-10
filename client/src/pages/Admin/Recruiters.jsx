@@ -933,17 +933,15 @@ const RecruiterRow = ({
             />
           )}
 
-          <ActionButton
-            label="Delete"
-            icon={<FiTrash2 />}
-            onClick={() =>
-              remove(
-                item?._id
-              )
-            }
-            disabled={busy}
-            className="bg-red-50 text-red-600 hover:bg-red-100"
-          />
+          {!window.location.pathname.startsWith("/admin") && (
+            <ActionButton
+              label="Delete"
+              icon={<FiTrash2 />}
+              onClick={() => remove(item?._id)}
+              disabled={busy}
+              className="bg-red-50 text-red-600 hover:bg-red-100"
+            />
+          )}
         </div>
       </td>
     </tr>

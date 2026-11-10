@@ -1,7 +1,6 @@
 import express from "express";
 
 import {
-  createGeneratedCertificate,
   getPendingCertificates,
   getGeneratedCertificateById,
   updateCertificateDetails,
@@ -15,6 +14,21 @@ import auth from "../middleware/auth.js";
 
 const router =
   express.Router();
+
+const STAFF_ROLES = ["employee", "admin", "control"];
+
+const allowRoles = (...roles) => (req, res, next) => {
+  const role = String(req.user?.role || "").toLowerCase();
+
+  if (!roles.includes(role)) {
+    return res.status(403).json({
+      success: false,
+      message: "You are not authorized to perform this action.",
+    });
+  }
+
+  next();
+};
 
 // =====================================================
 // PUBLIC VERIFICATION
@@ -30,11 +44,6 @@ router.get(
 // GENERATE
 // =====================================================
 
-router.post(
-  "/generate",
-  auth,
-  createGeneratedCertificate
-);
 
 // =====================================================
 // EMPLOYEE PENDING
@@ -43,6 +52,7 @@ router.post(
 router.get(
   "/pending",
   auth,
+  allowRoles(...STAFF_ROLES),
   getPendingCertificates
 );
 
@@ -53,6 +63,7 @@ router.get(
 router.get(
   "/:id",
   auth,
+  allowRoles("student", ...STAFF_ROLES),
   getGeneratedCertificateById
 );
 
@@ -63,6 +74,7 @@ router.get(
 router.put(
   "/:id/update",
   auth,
+  allowRoles(...STAFF_ROLES),
   updateCertificateDetails
 );
 
@@ -73,6 +85,7 @@ router.put(
 router.put(
   "/:id/revision",
   auth,
+  allowRoles(...STAFF_ROLES),
   requestCertificateRevision
 );
 
@@ -83,6 +96,7 @@ router.put(
 router.put(
   "/:id/approve",
   auth,
+  allowRoles(...STAFF_ROLES),
   approveCertificate
 );
 
@@ -93,6 +107,7 @@ router.put(
 router.put(
   "/:id/reject",
   auth,
+  allowRoles(...STAFF_ROLES),
   rejectCertificate
 );
 

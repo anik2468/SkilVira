@@ -15,6 +15,23 @@ import {
 
 const router = express.Router();
 
+const STAFF_ROLES = new Set(["employee", "admin", "control"]);
+
+const requireTemplateStaff = (req, res, next) => {
+  const role = String(req.user?.role || req.user?.userRole || "").toLowerCase();
+
+  if (!STAFF_ROLES.has(role)) {
+    return res.status(403).json({
+      success: false,
+      message: "Only authorized staff can manage templates.",
+    });
+  }
+
+  return next();
+};
+
+router.use(auth, requireTemplateStaff);
+
 
 // =====================================================
 // CREATE
@@ -22,7 +39,6 @@ const router = express.Router();
 
 router.post(
   "/",
-  auth,
   uploadDocument.single("offerLetter"),
   createOfferLetterTemplate
 );
@@ -34,7 +50,6 @@ router.post(
 
 router.get(
   "/",
-  auth,
   getOfferLetterTemplates
 );
 
@@ -45,7 +60,6 @@ router.get(
 
 router.get(
   "/:id",
-  auth,
   getOfferLetterTemplateById
 );
 
@@ -56,7 +70,6 @@ router.get(
 
 router.put(
   "/:id",
-  auth,
   uploadDocument.single("offerLetter"),
   updateOfferLetterTemplate
 );
@@ -68,7 +81,6 @@ router.put(
 
 router.delete(
   "/:id",
-  auth,
   deleteOfferLetterTemplate
 );
 
@@ -79,7 +91,6 @@ router.delete(
 
 router.put(
   "/:id/activate",
-  auth,
   activateOfferLetterTemplate
 );
 

@@ -823,6 +823,22 @@ export const getGeneratedCertificateById =
       }
 
 
+      const role = String(req.user?.role || "").toLowerCase();
+      const staffRoles = ["employee", "admin", "control"];
+      const studentId = String(
+        certificate.student?._id || certificate.student || ""
+      );
+
+      if (
+        !staffRoles.includes(role) &&
+        !(role === "student" && studentId === String(getUserId(req)))
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not authorized to view this certificate.",
+        });
+      }
+
       return res.status(200).json({
 
         success:
@@ -1399,8 +1415,7 @@ export const approveCertificate =
       // -------------------------------------------------
 
       if (
-        certificate.status ===
-        "approved"
+        !["pending", "revision"].includes(certificate.status)
       ) {
 
         return res.status(400).json({
@@ -1409,7 +1424,7 @@ export const approveCertificate =
             false,
 
           message:
-            "Certificate is already approved.",
+            "Only pending or revision certificates can be approved.",
         });
       }
 

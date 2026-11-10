@@ -14,11 +14,27 @@ import {
 
 const router = express.Router();
 
+const STAFF_ROLES = new Set(["employee", "admin", "control"]);
+
+const requireTemplateStaff = (req, res, next) => {
+  const role = String(req.user?.role || req.user?.userRole || "").toLowerCase();
+
+  if (!STAFF_ROLES.has(role)) {
+    return res.status(403).json({
+      success: false,
+      message: "Only authorized staff can manage templates.",
+    });
+  }
+
+  return next();
+};
+
+router.use(auth, requireTemplateStaff);
+
 
 // CREATE
 router.post(
   "/",
-  auth,
   uploadDocument.single("reportTemplate"),
   createReportTemplate
 );
@@ -27,7 +43,6 @@ router.post(
 // GET ALL
 router.get(
   "/",
-  auth,
   getReportTemplates
 );
 
@@ -35,7 +50,6 @@ router.get(
 // GET SINGLE
 router.get(
   "/:id",
-  auth,
   getReportTemplateById
 );
 
@@ -43,7 +57,6 @@ router.get(
 // UPDATE
 router.put(
   "/:id",
-  auth,
   uploadDocument.single("reportTemplate"),
   updateReportTemplate
 );
@@ -52,7 +65,6 @@ router.put(
 // DELETE
 router.delete(
   "/:id",
-  auth,
   deleteReportTemplate
 );
 
@@ -60,7 +72,6 @@ router.delete(
 // ACTIVATE
 router.put(
   "/:id/activate",
-  auth,
   activateReportTemplate
 );
 

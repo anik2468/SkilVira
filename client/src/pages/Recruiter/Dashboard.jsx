@@ -386,7 +386,7 @@ const Dashboard = () => {
                 label="Applications"
                 value={applicationTotal}
                 total={Math.max(applicationTotal, 1)}
-                percentage={100}
+                percentage={applicationTotal > 0 ? 100 : 0}
                 tone="gray"
               />
 

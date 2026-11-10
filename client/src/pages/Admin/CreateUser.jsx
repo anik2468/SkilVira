@@ -167,6 +167,13 @@ const CreateUser = () => {
         "Internal platform operations access.",
       icon: <FiLock />,
     },
+
+    admin: {
+      title: "Admin",
+      description:
+        "Limited user review and management access.",
+      icon: <FiShield />,
+    },
   };
 
   return (
@@ -310,6 +317,10 @@ const CreateUser = () => {
 
                   <option value="ambassador">
                     College Ambassador
+                  </option>
+
+                  <option value="admin">
+                    Admin
                   </option>
 
                   <option value="employee">

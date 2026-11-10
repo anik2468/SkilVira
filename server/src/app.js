@@ -1,4 +1,5 @@
 import express from "express";
+import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
@@ -12,6 +13,7 @@ import studentProfileRoutes from "./routes/studentProfileRoutes.js";
 import applicationRoutes from "./routes/applicationRoutes.js";
 import recruiterRoutes from "./routes/recruiterRoutes.js";
 import employeeRoutes from "./routes/employeeRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 import ambassadorRoutes from "./routes/ambassadorRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
@@ -30,7 +32,6 @@ import universityRoutes from "./routes/universityRoutes.js";
 
 import certificateRoutes from "./routes/certificateRoutes.js";
 import certificateTemplateRoutes from "./routes/certificateTemplateRoutes.js";
-import certificateGenerateRoutes from "./routes/certificateGenerateRoutes.js";
 import generatedCertificateRoutes from "./routes/generatedCertificateRoutes.js";
 
 import offerLetterTemplateRoutes from "./routes/offerLetterTemplateRoutes.js";
@@ -47,20 +48,75 @@ import studentOfferLetterRoutes from "./routes/studentOfferLetterRoutes.js";
 import studentStatusRoutes from "./routes/studentStatusRoutes.js";
 import enrollmentCompletionRoutes from "./routes/enrollmentCompletionRoutes.js";
 import controlEmployeeRoutes from "./routes/controlEmployeeRoutes.js";
+import courseAnalyticsRoutes from "./routes/courseAnalyticsRoutes.js";
+
 
 const app = express();
 
-const allowedOrigins = (
-  process.env.CLIENT_URL || "http://localhost:5173"
-)
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+app.disable("x-powered-by");
+
+
+// Security headers for the API.
+// Frontend CSP will be configured separately.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: false,
+    frameguard: { action: "deny" },
+    hsts: false,
+  })
+);
+
+// Restrictive CSP for API responses, excluding uploaded files.
+// PDF and image previews must continue to work.
+app.use((req, res, next) => {
+  const isUpload =
+    req.path === "/uploads" || req.path.startsWith("/uploads/");
+
+  if (!isUpload) {
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'"
+    );
+  }
+
+  next();
+});
+
+// Production HTTPS policy. The hosting platform must enforce HTTPS.
+if (process.env.NODE_ENV === "production") {
+  app.use((req, res, next) => {
+    res.setHeader(
+      "Strict-Transport-Security",
+      "max-age=31536000"
+    );
+    next();
+  });
+}
+
+// Accept configured frontend origins.
+// FRONTEND_URL is included because that is the variable in your .env.
+const allowedOrigins = new Set(
+  [
+    process.env.CLIENT_URL,
+    process.env.FRONTEND_URL,
+    process.env.CORS_ORIGINS,
+  ]
+    .filter(Boolean)
+    .flatMap((value) => value.split(","))
+    .map((origin) => origin.trim().replace(/\/+$/, ""))
+    .filter(Boolean)
+);
+
+if (process.env.NODE_ENV !== "production") {
+  allowedOrigins.add("http://localhost:5173");
+}
 
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.has(origin)) {
         return callback(null, true);
       }
 
@@ -91,6 +147,7 @@ app.use("/api/student-profile", studentProfileRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/recruiter", recruiterRoutes);
 app.use("/api/employee", employeeRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/control", controlEmployeeRoutes);
 app.use("/api/control", controlRoutes);
@@ -109,6 +166,7 @@ app.use("/api/control/universities", universityRoutes);
 
 // Courses and learning
 app.use("/api/courses", courseRoutes);
+app.use("/api/course-analytics", courseAnalyticsRoutes);
 app.use("/api/lessons", lessonRoutes);
 app.use("/api/enrollment", enrollmentRoutes);
 app.use("/api/live-classes", liveClassRoutes);
@@ -140,9 +198,6 @@ app.use("/api/student-status", studentStatusRoutes);
 app.use("/api/certificates", certificateRoutes);
 app.use("/api/certificate-template", certificateTemplateRoutes);
 app.use("/api/certificate-templates", certificateTemplateRoutes);
-
-// Legacy certificate draft-generation endpoint
-app.use("/api/certificate", certificateGenerateRoutes);
 
 // IMPORTANT: Workflow APIs must use generatedCertificateRoutes,
 // not the legacy certificateGenerateRoutes.

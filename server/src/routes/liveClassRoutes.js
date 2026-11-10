@@ -3,6 +3,8 @@ import auth from "../middleware/auth.js";
 
 import {
   listCourseLiveClasses,
+  recordLiveClassJoin,
+  recordLiveClassLeave,
   createLiveClass,
   startLiveClass,
   endLiveClass,
@@ -21,6 +23,8 @@ router.post("/course/:courseId", auth, createLiveClass);
 router.post("/:id/start", auth, startLiveClass);
 router.post("/:id/end", auth, endLiveClass);
 router.post("/:id/token", auth, getLiveClassToken);
+router.post("/:id/attendance/join", auth, recordLiveClassJoin);
+router.post("/:id/attendance/leave", auth, recordLiveClassLeave);
 
 router.get("/:id/quiz", auth, getLiveQuiz);
 router.post("/:id/quiz", auth, createLiveQuiz);

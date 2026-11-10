@@ -15,16 +15,14 @@ import api from "./api";
 // All Internships
 // ======================================
 
-export const getInternships = async (
-  params = {}
-) => {
-  const { data } = await api.get(
-    "/internships",
-    {
-      params,
-    }
-  );
+const isLimitedAdminPanel = () =>
+  typeof window !== "undefined" &&
+  window.location.pathname.startsWith("/admin");
 
+export const getInternships = async (params = {}) => {
+  const adminMode = isLimitedAdminPanel();
+  const endpoint = adminMode ? "/admin/internships" : "/internships";
+  const { data } = await api.get(endpoint, adminMode ? {} : { params });
   return data;
 };
 
@@ -134,20 +132,14 @@ export const getRecruiterInternships = async (
 // Create Internship
 // ======================================
 
-export const createInternship = async (
-  body
-) => {
-  if (!body) {
-    throw new Error(
-      "Internship data is required"
-    );
-  }
+export const createInternship = async (body) => {
+  if (!body) throw new Error("Internship data is required");
 
-  const { data } = await api.post(
-    "/internships",
-    body
-  );
+  const endpoint = isLimitedAdminPanel()
+    ? "/admin/internships"
+    : "/internships";
 
+  const { data } = await api.post(endpoint, body);
   return data;
 };
 
@@ -156,27 +148,15 @@ export const createInternship = async (
 // Update Internship
 // ======================================
 
-export const updateInternship = async (
-  id,
-  body
-) => {
-  if (!id) {
-    throw new Error(
-      "Internship ID is required"
-    );
-  }
+export const updateInternship = async (id, body) => {
+  if (!id) throw new Error("Internship ID is required");
+  if (!body) throw new Error("Internship data is required");
 
-  if (!body) {
-    throw new Error(
-      "Internship data is required"
-    );
-  }
+  const endpoint = isLimitedAdminPanel()
+    ? `/admin/internships/${id}`
+    : `/internships/${id}`;
 
-  const { data } = await api.put(
-    `/internships/${id}`,
-    body
-  );
-
+  const { data } = await api.put(endpoint, body);
   return data;
 };
 
@@ -185,19 +165,14 @@ export const updateInternship = async (
 // Delete Internship
 // ======================================
 
-export const deleteInternship = async (
-  id
-) => {
-  if (!id) {
-    throw new Error(
-      "Internship ID is required"
-    );
-  }
+export const deleteInternship = async (id) => {
+  if (!id) throw new Error("Internship ID is required");
 
-  const { data } = await api.delete(
-    `/internships/${id}`
-  );
+  const endpoint = isLimitedAdminPanel()
+    ? `/admin/internships/${id}`
+    : `/internships/${id}`;
 
+  const { data } = await api.delete(endpoint);
   return data;
 };
 

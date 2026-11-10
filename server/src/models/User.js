@@ -47,6 +47,7 @@ const userSchema = new mongoose.Schema(
         "recruiter",
         "ambassador",
         "employee",
+        "admin",
         "control",
       ],
       default: "student",

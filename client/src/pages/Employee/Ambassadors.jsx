@@ -18,6 +18,7 @@ import {
 const API_BASE = API_ORIGIN;
 
 const Ambassadors = () => {
+  const isAdminPanel = window.location.pathname.startsWith("/admin");
   const [ambassadors, setAmbassadors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,7 +41,7 @@ const Ambassadors = () => {
       setError("");
 
       const { data } = await api.get(
-        "/employee/ambassadors/pending"
+        isAdminPanel ? "/admin/ambassadors/pending" : "/employee/ambassadors/pending"
       );
 
       setAmbassadors(
@@ -79,7 +80,7 @@ const Ambassadors = () => {
       setError("");
 
       await api.put(
-        `/employee/ambassadors/approve/${id}`
+        isAdminPanel ? `/admin/ambassadors/${id}/approve` : `/employee/ambassadors/approve/${id}`
       );
 
       await loadAmbassadors(true);
@@ -113,7 +114,7 @@ const Ambassadors = () => {
       setError("");
 
       await api.put(
-        `/employee/ambassadors/reject/${id}`
+        isAdminPanel ? `/admin/ambassadors/${id}/reject` : `/employee/ambassadors/reject/${id}`
       );
 
       await loadAmbassadors(true);

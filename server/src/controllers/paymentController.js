@@ -153,6 +153,13 @@ const activateApprovedPayment = async (paymentId) => {
 // Create Razorpay order
 export const createOrder = async (req, res) => {
   try {
+    if (getRole(req) !== "student") {
+      return res.status(403).json({
+        success: false,
+        message: "Only student accounts can create payment orders.",
+      });
+    }
+
     const student = getUserId(req);
 
     if (!student) {
@@ -178,7 +185,7 @@ export const createOrder = async (req, res) => {
       internship,
       amount,
       originalAmount,
-      discountAmount = 0,
+      discountAmount,
       finalAmount,
       referralCode = "",
     } = req.body || {};
@@ -237,49 +244,119 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    // Always calculate online payment from the server-side product price.
-    // Never trust a client-supplied amount or discount.
-    // Add discounts only after validating an eligible offer on the server.
-    const original = Number(product.price);
-    const discount = 0;
-    const final = original;
+    // Calculate payment from authoritative server-side product settings.
+    const roundMoney = (value) =>
+      Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
-    if (
-      ![original, discount, final].every(Number.isFinite) ||
-      original < 0 ||
-      discount < 0 ||
-      final < 0 ||
-      final > original
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid payment amount",
-      });
-    }
+    const original = roundMoney(Math.max(0, Number(product.price) || 0));
 
-    if (final <= 0) {
+    if (original <= 0) {
       return res.status(400).json({
         success: false,
         message: "Online payment amount must be greater than zero",
       });
     }
 
+    const normalizedCode = String(referralCode || "").trim().toUpperCase();
     let ambassador = null;
-
-    const normalizedCode = String(referralCode || "")
-      .trim()
-      .toUpperCase();
 
     if (normalizedCode) {
       const owner = await User.findOne({
         referralCode: normalizedCode,
         role: "ambassador",
+        ambassadorApproved: true,
+        status: "active",
+        isDeleted: { $ne: true },
       }).select("_id");
 
-      if (owner) {
-        ambassador = owner._id;
+      if (!owner) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid or inactive ambassador referral code.",
+        });
+      }
+
+      ambassador = owner._id;
+    } else {
+      const studentUser = await User.findById(student).select("referredBy");
+
+      if (studentUser?.referredBy) {
+        const owner = await User.findOne({
+          _id: studentUser.referredBy,
+          role: "ambassador",
+          ambassadorApproved: true,
+          status: "active",
+          isDeleted: { $ne: true },
+        }).select("_id");
+
+        ambassador = owner?._id || null;
       }
     }
+
+    const discountType =
+      product.studentReferralDiscountType === "fixed" ? "fixed" : "percent";
+    const discountValue = Math.max(
+      0,
+      Number(product.studentReferralDiscountValue) || 0
+    );
+
+    const requestedDiscount =
+      normalizedCode && product.studentReferralDiscountEnabled === true
+        ? discountType === "fixed"
+          ? discountValue
+          : original * Math.min(discountValue, 100) / 100
+        : 0;
+
+    const discount = roundMoney(
+      Math.min(Math.max(original - 1, 0), requestedDiscount)
+    );
+    const final = roundMoney(original - discount);
+
+    if (!Number.isFinite(final) || final <= 0 || final > original) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment amount",
+      });
+    }
+
+    const suppliedAmounts = [
+      [amount, final],
+      [originalAmount, original],
+      [discountAmount, discount],
+      [finalAmount, final],
+    ];
+
+    if (suppliedAmounts.some(([supplied, expected]) =>
+      supplied != null &&
+      (!Number.isFinite(Number(supplied)) ||
+        Math.abs(Number(supplied) - expected) > 0.01)
+    )) {
+      return res.status(409).json({
+        success: false,
+        message: "The fee or referral discount has changed. Refresh checkout and try again.",
+        originalAmount: original,
+        discountAmount: discount,
+        finalAmount: final,
+      });
+    }
+
+    const commissionType =
+      product.ambassadorCommissionType === "fixed" ? "fixed" : "percent";
+    const commissionValue = Math.max(
+      0,
+      Number(product.ambassadorCommissionValue ?? 15) || 0
+    );
+    const commissionEnabled = product.ambassadorCommissionEnabled !== false;
+
+    const calculatedCommission =
+      commissionType === "fixed"
+        ? commissionValue
+        : final * Math.min(commissionValue, 100) / 100;
+
+    const ambassadorCommissionAmount =
+      ambassador && commissionEnabled
+        ? roundMoney(Math.min(final, calculatedCommission))
+        : 0;
 
     const razorpay = new Razorpay({
       key_id: process.env.RAZORPAY_KEY_ID,
@@ -302,6 +379,11 @@ export const createOrder = async (req, res) => {
       finalAmount: final,
       referralCode: normalizedCode,
       ambassador,
+      studentReferralDiscountType: discountType,
+      studentReferralDiscountValue: discountValue,
+      ambassadorCommissionType: commissionType,
+      ambassadorCommissionValue: commissionValue,
+      ambassadorCommissionAmount,
       razorpayOrderId: order.id,
       paymentMode: "razorpay",
       status: "pending",
@@ -321,6 +403,13 @@ export const createOrder = async (req, res) => {
 // Verify Razorpay payment
 export const verifyPayment = async (req, res) => {
   try {
+    if (getRole(req) !== "student") {
+      return res.status(403).json({
+        success: false,
+        message: "Only student accounts can verify payments.",
+      });
+    }
+
     const userId = getUserId(req);
 
     const {
@@ -415,6 +504,13 @@ export const verifyPayment = async (req, res) => {
 // Manual payment submission
 export const createManualPayment = async (req, res) => {
   try {
+    if (getRole(req) !== "student") {
+      return res.status(403).json({
+        success: false,
+        message: "Only student accounts can submit manual payments.",
+      });
+    }
+
     const student = getUserId(req);
 
     if (!student) {

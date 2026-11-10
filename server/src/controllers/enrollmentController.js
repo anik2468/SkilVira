@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Course from "../models/Course.js";
 import Payment from "../models/Payment.js";
 import Enrollment from "../models/Enrollment.js";
@@ -142,54 +143,62 @@ export const enrollInFreeCourse = async (req, res) => {
 // STUDENT MY COURSES
 // =====================================================
 
-export const getMyCourses = async (
-  req,
-  res
-) => {
-  try {
-    const studentId =
-      req.params.studentId ||
-      getUserId(req);
 
-    if (!studentId) {
-      return res.status(400).json({
+export const getMyCourses = async (req, res) => {
+  try {
+    const authenticatedStudentId = getUserId(req);
+    const role = String(req.user?.role || "").toLowerCase();
+
+    if (!authenticatedStudentId) {
+      return res.status(401).json({
         success: false,
-        message:
-          "Student ID is required.",
+        message: "Please log in to view your courses.",
       });
     }
 
-    const enrollments =
-      await Enrollment.find({
-        student: studentId,
-        isDeleted: false,
-      })
-        .populate("course")
-        .populate("internship")
-        .populate("offerLetter")
-        .populate("certificate")
-        .populate("report")
-        .sort({
-          createdAt: -1,
-        });
+    if (role !== "student") {
+      return res.status(403).json({
+        success: false,
+        message: "Only students can access their course list.",
+      });
+    }
+
+    const requestedStudentId = req.params.studentId;
+
+    if (
+      requestedStudentId &&
+      String(requestedStudentId) !== String(authenticatedStudentId)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot access another student's courses.",
+      });
+    }
+
+    const enrollments = await Enrollment.find({
+      student: authenticatedStudentId,
+      isDeleted: { $ne: true },
+    })
+      .populate("course")
+      .populate("internship")
+      .populate("offerLetter")
+      .populate("certificate")
+      .populate("report")
+      .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
       enrollments,
     });
-
   } catch (error) {
-    console.error(
-      "GET MY COURSES ERROR:",
-      error
-    );
-
+    console.error("GET MY COURSES ERROR:", error);
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Unable to fetch your courses.",
     });
   }
 };
+
 
 
 // =====================================================
@@ -201,15 +210,9 @@ export const completeLesson = async (
   res
 ) => {
   try {
-    const {
-      student: bodyStudent,
-      course,
-      lesson,
-    } = req.body;
+    const { course, lesson } = req.body || {};
 
-    const student =
-      getUserId(req) ||
-      bodyStudent;
+    const student = getUserId(req);
 
     if (
       !student ||
@@ -223,6 +226,52 @@ export const completeLesson = async (
       });
     }
 
+
+    const role = String(req.user?.role || "").toLowerCase();
+
+    if (role !== "student") {
+      return res.status(403).json({
+        success: false,
+        message: "Only students can mark lessons complete.",
+      });
+    }
+
+    if (
+      !mongoose.Types.ObjectId.isValid(String(course)) ||
+      !mongoose.Types.ObjectId.isValid(String(lesson))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid course or lesson ID.",
+      });
+    }
+
+    const authorizedEnrollment = await Enrollment.findOne({
+      student,
+      course,
+      isDeleted: { $ne: true },
+      status: { $in: ["Active", "Completed"] },
+    });
+
+    if (!authorizedEnrollment) {
+      return res.status(403).json({
+        success: false,
+        message: "An active course enrollment is required.",
+      });
+    }
+
+    const authorizedLesson = await Lesson.findOne({
+      _id: lesson,
+      course,
+      isPublished: true,
+    }).select("_id");
+
+    if (!authorizedLesson) {
+      return res.status(404).json({
+        success: false,
+        message: "Published lesson not found in this course.",
+      });
+    }
 
     // =================================================
     // FIND / CREATE LESSON PROGRESS
@@ -297,7 +346,7 @@ export const completeLesson = async (
       await Enrollment.findOne({
         student,
         course,
-        isDeleted: false,
+        isDeleted: { $ne: true },
       });
 
 
@@ -432,113 +481,99 @@ export const completeLesson = async (
 // GET COURSE PROGRESS
 // =====================================================
 
-export const getCourseProgress =
-  async (
-    req,
-    res
-  ) => {
 
-    try {
+export const getCourseProgress = async (req, res) => {
+  try {
+    const authenticatedStudentId = getUserId(req);
+    const role = String(req.user?.role || "").toLowerCase();
+    const requestedStudentId = req.params.studentId;
+    const courseId = String(req.params.courseId || "");
 
-      const {
-        studentId,
-        courseId,
-      } = req.params;
-
-
-      if (
-        !studentId ||
-        !courseId
-      ) {
-
-        return res.status(400).json({
-          success: false,
-          message:
-            "Student ID and course ID are required.",
-        });
-      }
-
-
-      const completedProgress =
-        await LessonProgress.find({
-          student: studentId,
-          course: courseId,
-          completed: true,
-        })
-          .populate(
-            "lesson",
-            "title order"
-          )
-          .sort({
-            completedAt: 1,
-          });
-
-
-      const totalLessons =
-        await Lesson.countDocuments({
-          course: courseId,
-          isPublished: true,
-        });
-
-
-      const completedLessons =
-        completedProgress.length;
-
-
-      const percentage =
-        totalLessons === 0
-          ? 0
-          : Math.min(
-              100,
-              Math.round(
-                (completedLessons /
-                  totalLessons) *
-                  100
-              )
-            );
-
-
-      const enrollment =
-        await Enrollment.findOne({
-          student: studentId,
-          course: courseId,
-          isDeleted: false,
-        })
-          .populate("course")
-          .populate("certificate")
-          .populate("report")
-          .populate("offerLetter");
-
-
-      return res.status(200).json({
-        success: true,
-
-        totalLessons,
-
-        completedLessons,
-
-        progress:
-          percentage,
-
-        completedLessonList:
-          completedProgress,
-
-        enrollment,
-      });
-
-    } catch (error) {
-
-      console.error(
-        "GET COURSE PROGRESS ERROR:",
-        error
-      );
-
-      return res.status(500).json({
+    if (!authenticatedStudentId) {
+      return res.status(401).json({
         success: false,
-        message: error.message,
+        message: "Please log in to view course progress.",
       });
     }
-  };
+
+    if (role !== "student") {
+      return res.status(403).json({
+        success: false,
+        message: "Only students can access this progress endpoint.",
+      });
+    }
+
+    if (
+      requestedStudentId &&
+      String(requestedStudentId) !== String(authenticatedStudentId)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot access another student's progress.",
+      });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(courseId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid course ID.",
+      });
+    }
+
+    const enrollment = await Enrollment.findOne({
+      student: authenticatedStudentId,
+      course: courseId,
+      isDeleted: { $ne: true },
+      status: { $in: ["Active", "Completed"] },
+    })
+      .populate("course")
+      .populate("certificate")
+      .populate("report")
+      .populate("offerLetter");
+
+    if (!enrollment) {
+      return res.status(404).json({
+        success: false,
+        message: "Course enrollment not found.",
+      });
+    }
+
+    const completedProgress = await LessonProgress.find({
+      student: authenticatedStudentId,
+      course: courseId,
+      completed: true,
+    })
+      .populate("lesson", "title order")
+      .sort({ completedAt: 1 });
+
+    const totalLessons = await Lesson.countDocuments({
+      course: courseId,
+      isPublished: true,
+    });
+
+    const completedLessons = completedProgress.length;
+    const percentage =
+      totalLessons === 0
+        ? 0
+        : Math.min(100, Math.round((completedLessons / totalLessons) * 100));
+
+    return res.status(200).json({
+      success: true,
+      totalLessons,
+      completedLessons,
+      progress: percentage,
+      completedLessonList: completedProgress,
+      enrollment,
+    });
+  } catch (error) {
+    console.error("GET COURSE PROGRESS ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to fetch course progress.",
+    });
+  }
+};
+
 
 
 // =====================================================

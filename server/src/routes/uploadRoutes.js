@@ -1,5 +1,6 @@
 import express from "express";
-import { uploadImageBuffer } from "../utils/cloudinaryUpload.js";
+import multer from "multer";
+import { uploadImageBuffer, uploadPdfBuffer } from "../utils/cloudinaryUpload.js";
 
 import auth from "../middleware/auth.js";
 import upload from "../middleware/upload.js";
@@ -16,14 +17,25 @@ const router = express.Router();
 const getRole = (req) =>
   String(req.user?.role || req.user?.userRole || "").toLowerCase();
 
-const requireStaff = (req, res, next) => {
-  if (["employee", "control"].includes(getRole(req))) {
+const requireCourseStaff = (req, res, next) => {
+  if (["employee", "control", "admin"].includes(getRole(req))) {
     return next();
   }
 
   return res.status(403).json({
     success: false,
-    message: "Only authorized staff can upload certificate templates.",
+    message: "Only authorized course staff can upload course media.",
+  });
+};
+
+const requireControl = (req, res, next) => {
+  if (getRole(req) === "control") {
+    return next();
+  }
+
+  return res.status(403).json({
+    success: false,
+    message: "Only Super Admin can upload certificate templates.",
   });
 };
 
@@ -100,7 +112,7 @@ router.post(
 router.post(
   "/certificate",
   auth,
-  requireStaff,
+  requireControl,
   uploadCertificate.single("certificate"),
   (req, res) => {
     if (!req.file) {
@@ -125,7 +137,7 @@ router.post(
 router.post(
   "/course-thumbnail",
   auth,
-  requireStaff,
+  requireCourseStaff,
   thumbnailUpload.single("thumbnail"),
   async (req, res) => {
     if (!req.file) {
@@ -159,7 +171,7 @@ router.post(
 router.post(
   "/course-video",
   auth,
-  requireStaff,
+  requireCourseStaff,
   videoUpload.single("video"),
   (req, res) => {
     if (!req.file) {
@@ -173,6 +185,47 @@ router.post(
       success: true,
       url: `/uploads/courses/videos/${req.file.filename}`,
     });
+  }
+);
+
+
+// Course notes PDF upload; employee/control only.
+const courseNotesPdfUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype !== "application/pdf" || !/\.pdf$/i.test(file.originalname || "")) {
+      const error = new Error("Please upload a PDF document.");
+      error.status = 400;
+      return cb(error);
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 50 * 1024 * 1024 },
+});
+
+router.post(
+  "/course-notes",
+  auth,
+  requireCourseStaff,
+  courseNotesPdfUpload.single("pdf"),
+  async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Please select a PDF." });
+    }
+    try {
+      const uploaded = await uploadPdfBuffer(req.file);
+      return res.status(201).json({
+        success: true,
+        url: uploaded.secure_url,
+        path: uploaded.secure_url,
+      });
+    } catch (error) {
+      console.error("COURSE NOTES PDF UPLOAD ERROR:", error);
+      return res.status(error.status || 502).json({
+        success: false,
+        message: error.message || "Unable to upload notes PDF.",
+      });
+    }
   }
 );
 

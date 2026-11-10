@@ -101,6 +101,11 @@ const menuSections = [
         icon: <FiBookOpen />,
       },
       {
+        name: "Course Analytics",
+        path: "/employee/course-analytics",
+        icon: <FiBookOpen />,
+      },
+      {
         name: "Users",
         path: "/employee/users",
         icon: <FiUsers />,
@@ -126,26 +131,6 @@ const menuSections = [
   {
     title: "Settings",
     items: [
-      {
-        name: "Settings Home",
-        path: "/employee/settings",
-        icon: <FiSettings />,
-      },
-      {
-        name: "Payment Settings",
-        path: "/employee/payment-settings",
-        icon: <FiSettings />,
-      },
-      {
-        name: "Referral Discount & Commission",
-        path: "/employee/referral-settings",
-        icon: <FiBookOpen />,
-      },
-      {
-        name: "Contact & Support Settings",
-        path: "/employee/contact-settings",
-        icon: <FiSettings />,
-      },
       {
         name: "Profile",
         path: "/employee/profile",

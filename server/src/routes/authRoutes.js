@@ -7,36 +7,18 @@ import {
   resetPassword,
 } from "../controllers/authController.js";
 
+import {
+  loginLimiter,
+  registrationLimiter,
+  forgotPasswordLimiter,
+  resetPasswordLimiter,
+} from "../middleware/authRateLimiters.js";
 
 const router = express.Router();
 
-
-// Register
-router.post(
-  "/register",
-  register
-);
-
-
-// Login
-router.post(
-  "/login",
-  login
-);
-
-
-// Forgot Password
-router.post(
-  "/forgot-password",
-  forgotPassword
-);
-
-
-// Reset Password
-router.post(
-  "/reset-password/:token",
-  resetPassword
-);
-
+router.post("/register", registrationLimiter, register);
+router.post("/login", loginLimiter, login);
+router.post("/forgot-password", forgotPasswordLimiter, forgotPassword);
+router.post("/reset-password/:token", resetPasswordLimiter, resetPassword);
 
 export default router;

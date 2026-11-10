@@ -97,14 +97,23 @@ isDeleted:false,
 
 
 
-courses =
-await Enrollment.countDocuments({
+const activeCourseEnrollments = await Enrollment.find({
+  student: userId,
+  isDeleted: { $ne: true },
+  course: { $ne: null },
+})
+  .populate({
+    path: "course",
+    match: { isDeleted: { $ne: true } },
+  })
+  .sort({ createdAt: -1 })
+  .lean();
 
-student:userId,
+const visibleCourseEnrollments = activeCourseEnrollments.filter(
+  (item) => item.course
+);
 
-isDeleted:false,
-
-});
+courses = visibleCourseEnrollments.length;
 
 
 
@@ -144,19 +153,7 @@ profile?.profileCompleted || 0;
 
 
 
-myCourses =
-
-await Enrollment.find({
-
-student:userId,
-
-isDeleted:false
-
-})
-
-.populate("course")
-
-.limit(4);
+myCourses = visibleCourseEnrollments.slice(0, 4);
 
 
 

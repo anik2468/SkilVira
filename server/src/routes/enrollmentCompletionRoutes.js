@@ -8,6 +8,19 @@ import {
 
 const router = express.Router();
 
+const allowRoles = (...roles) => (req, res, next) => {
+  const role = String(req.user?.role || "").toLowerCase();
+
+  if (!roles.includes(role)) {
+    return res.status(403).json({
+      success: false,
+      message: "Only authorized staff can complete enrollments.",
+    });
+  }
+
+  next();
+};
+
 
 // =====================================================
 // COMPLETE ENROLLMENT
@@ -16,6 +29,7 @@ const router = express.Router();
 router.put(
   "/:id/complete",
   auth,
+  allowRoles("employee", "admin", "control"),
   markEnrollmentCompleted
 );
 

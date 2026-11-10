@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   FiArrowLeft,
@@ -10,14 +10,11 @@ import {
   FiXCircle,
 } from "react-icons/fi";
 
-import {
-  LiveKitRoom,
-  RoomAudioRenderer,
-  VideoConference,
-} from "@livekit/components-react";
-import "@livekit/components-styles";
+
 
 import api from "../services/api";
+
+const LiveKitRoomView = lazy(() => import("../components/live/LiveKitRoomView.jsx"));
 
 const LiveClassroom = () => {
   const { id } = useParams();
@@ -196,6 +193,15 @@ const LiveClassroom = () => {
     }
   };
 
+  const recordAttendance = async (action) => {
+    if (isInstructor) return;
+    try {
+      await api.post(`/live-classes/${id}/attendance/${action}`);
+    } catch (attendanceError) {
+      console.warn("Live-class attendance update failed:", attendanceError?.message || attendanceError);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-500">
@@ -262,19 +268,29 @@ const LiveClassroom = () => {
 
         {!roomEnded && token && serverUrl && (
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
-            <LiveKitRoom
-              token={token}
-              serverUrl={serverUrl}
-              connect={true}
-              video={isInstructor}
-              audio={isInstructor}
-              data-lk-theme="default"
-              style={{ height: "min(76vh, 900px)", minHeight: "480px" }}
-              onError={(roomError) => setError(roomError?.message || "LiveKit connection error.")}
+            <Suspense
+              fallback={
+                <div className="flex min-h-[480px] items-center justify-center text-sm text-gray-300">
+                  Loading live classroom media...
+                </div>
+              }
             >
-              <VideoConference />
-              <RoomAudioRenderer />
-            </LiveKitRoom>
+              <LiveKitRoomView
+                token={token}
+                serverUrl={serverUrl}
+                video={isInstructor}
+                audio={isInstructor}
+                onConnected={() => {
+                  if (!isInstructor) void recordAttendance("join");
+                }}
+                onDisconnected={() => {
+                  if (!isInstructor) void recordAttendance("leave");
+                }}
+                onError={(roomError) =>
+                  setError(roomError?.message || "LiveKit connection error.")
+                }
+              />
+            </Suspense>
           </div>
         )}
 

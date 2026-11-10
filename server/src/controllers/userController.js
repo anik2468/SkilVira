@@ -6,49 +6,51 @@ import User from "../models/User.js";
 // =======================================
 
 export const getAllUsers = async (req, res) => {
+  try {
+    const actorRole = String(req.user?.role || "")
+      .trim()
+      .toLowerCase();
 
-try {
+    if (!["employee", "control"].includes(actorRole)) {
+      return res.status(403).json({
+        success: false,
+        message: "Employee or Control Admin access is required.",
+      });
+    }
 
-const users =
-await User.find({
-isDeleted:false,
-})
-.select("-password -refreshToken")
-.sort({
-createdAt:-1,
-});
+    const filter = {
+      isDeleted: { $ne: true },
+    };
 
+    // Employees can manage students, recruiters and ambassadors,
+    // but must not see other employee accounts.
+    if (actorRole === "employee") {
+      filter.role = {
+        $in: ["student", "recruiter", "ambassador"],
+      };
+    }
 
-res.status(200).json({
+    const users = await User.find(filter)
+      .select(
+        "-password -refreshToken -resetPasswordToken -resetPasswordExpire"
+      )
+      .sort({ createdAt: -1 })
+      .lean();
 
-success:true,
+    return res.status(200).json({
+      success: true,
+      count: users.length,
+      users,
+    });
+  } catch (error) {
+    console.error("GET ALL USERS ERROR:", error);
 
-count:users.length,
-
-users,
-
-});
-
-
-}catch(error){
-
-console.error(error);
-
-res.status(500).json({
-
-success:false,
-
-message:error.message,
-
-});
-
-}
-
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load users.",
+    });
+  }
 };
-
-
-
-
 
 // =======================================
 // Get Pending Recruiters

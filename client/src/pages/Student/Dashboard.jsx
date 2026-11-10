@@ -140,6 +140,17 @@ const Dashboard = () => {
 
   const stats = dashboard?.stats || {};
 
+  const savedInternshipsCount = (() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem("skilvira_saved_internships") || "[]"
+      );
+      return Array.isArray(saved) ? saved.length : 0;
+    } catch {
+      return 0;
+    }
+  })();
+
   const activeEnrollments = statusData.filter(
     (item) =>
       item?.enrollment &&
@@ -243,7 +254,7 @@ const Dashboard = () => {
 
         <StatCard
           icon={<FiBookmark />}
-          value={stats.saved || 0}
+          value={savedInternshipsCount}
           title="Saved"
         />
 

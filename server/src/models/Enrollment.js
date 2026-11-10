@@ -190,23 +190,13 @@ const enrollmentSchema =
 // VALIDATION
 // =========================================
 
-enrollmentSchema.pre(
-  "validate",
-  function (next) {
-    if (
-      !this.course &&
-      !this.internship
-    ) {
-      return next(
-        new Error(
-          "Enrollment must have either a course or internship."
-        )
-      );
-    }
-
-    next();
+enrollmentSchema.pre("validate", function () {
+  if (!this.course && !this.internship) {
+    throw new Error(
+      "Enrollment must have either a course or internship."
+    );
   }
-);
+});
 
 
 // =========================================

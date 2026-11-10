@@ -1,5 +1,9 @@
 import api from "./api";
 
+const isLimitedAdminPanel = () =>
+  typeof window !== "undefined" &&
+  window.location.pathname.startsWith("/admin");
+
 // =====================================================
 // CERTIFICATE SERVICE
 // =====================================================
@@ -10,9 +14,8 @@ import api from "./api";
 // ======================================
 
 export const getCertificates = async () => {
-  const { data } = await api.get(
-    "/certificates"
-  );
+  const endpoint = isLimitedAdminPanel() ? "/admin/certificates" : "/certificates";
+  const { data } = await api.get(endpoint);
 
   return data;
 };
@@ -60,9 +63,10 @@ export const verifyCertificate = async (id) => {
     throw new Error("Certificate ID is required");
   }
 
-  const { data } = await api.put(
-    `/certificates/verify/${id}`
-  );
+  const endpoint = isLimitedAdminPanel()
+    ? `/admin/certificates/${id}/verify`
+    : `/certificates/verify/id/${id}`;
+  const { data } = await api.put(endpoint);
 
   return data;
 };
@@ -98,9 +102,10 @@ export const rejectCertificate = async (id) => {
     throw new Error("Certificate ID is required");
   }
 
-  const { data } = await api.put(
-    `/certificates/reject/${id}`
-  );
+  const endpoint = isLimitedAdminPanel()
+    ? `/admin/certificates/${id}/reject`
+    : `/certificates/reject/${id}`;
+  const { data } = await api.put(endpoint);
 
   return data;
 };
@@ -113,6 +118,10 @@ export const rejectCertificate = async (id) => {
 export const deleteCertificate = async (id) => {
   if (!id) {
     throw new Error("Certificate ID is required");
+  }
+
+  if (isLimitedAdminPanel()) {
+    throw new Error("Only Super Admin can delete certificates.");
   }
 
   const { data } = await api.delete(

@@ -63,6 +63,9 @@ const Dashboard = () => {
         recruiters: Number(incoming.recruiters || 0),
         colleges: Number(incoming.colleges || 0),
         admins: Number(incoming.admins || 0),
+        operationalAdmins: Number(incoming.operationalAdmins || 0),
+        employees: Number(incoming.employees || 0),
+        ambassadors: Number(incoming.ambassadors || 0),
         internships: Number(incoming.internships || 0),
         applications: Number(incoming.applications || 0),
         certificates: Number(incoming.certificates || 0),
@@ -109,6 +112,10 @@ const Dashboard = () => {
     return (
       stats.students +
       stats.recruiters +
+      stats.operationalAdmins +
+      stats.employees +
+      stats.ambassadors +
+      stats.admins +
       stats.colleges +
       stats.internships
     );
@@ -128,6 +135,27 @@ const Dashboard = () => {
       helper: "Hiring partners",
       icon: <FiBriefcase />,
       tone: "blue",
+    },
+    {
+      title: "Admin Staff",
+      value: formatNumber(stats.operationalAdmins),
+      helper: "Operational administrators",
+      icon: <FiUsers />,
+      tone: "purple",
+    },
+    {
+      title: "Employees",
+      value: formatNumber(stats.employees),
+      helper: "Platform team",
+      icon: <FiUsers />,
+      tone: "blue",
+    },
+    {
+      title: "Ambassadors",
+      value: formatNumber(stats.ambassadors),
+      helper: "Community partners",
+      icon: <FiUsers />,
+      tone: "green",
     },
     {
       title: "Colleges",
@@ -246,7 +274,7 @@ const Dashboard = () => {
                   />
 
                   <MiniDarkMetric
-                    label="Admins"
+                    label="Super Admins"
                     value={stats.admins}
                   />
                 </div>

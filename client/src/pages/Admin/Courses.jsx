@@ -26,10 +26,14 @@ import {
 
 const GOLD = "#D4AF37";
 
-const getCourseBasePath = () =>
-  window.location.pathname.startsWith("/employee")
-    ? "/employee/courses"
-    : "/control/courses";
+const getCourseBasePath = () => {
+  const path = window.location.pathname;
+
+  if (path.startsWith("/admin")) return "/admin/courses";
+  if (path.startsWith("/employee")) return "/employee/courses";
+
+  return "/control/courses";
+};
 
 
 

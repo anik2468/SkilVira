@@ -31,7 +31,7 @@ export const getMyStatus = async (req, res) => {
       student: studentId,
       isDeleted: { $ne: true },
     })
-      .populate("course", "title name")
+      .populate("course", "title name isDeleted")
       .populate(
         "internship",
         "title company companyLogo internshipType workMode location duration"
@@ -39,7 +39,11 @@ export const getMyStatus = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    if (!payments.length) {
+    const visiblePayments = payments.filter(
+      (payment) => !payment.course?.isDeleted
+    );
+
+    if (!visiblePayments.length) {
       return res.status(200).json({
         success: true,
         data: [],
@@ -47,7 +51,7 @@ export const getMyStatus = async (req, res) => {
       });
     }
 
-    const paymentIds = payments.map((item) => item._id);
+    const paymentIds = visiblePayments.map((item) => item._id);
 
     const enrollments = await Enrollment.find({
       student: studentId,
@@ -93,7 +97,7 @@ export const getMyStatus = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    const result = payments.map((payment) => {
+    const result = visiblePayments.map((payment) => {
       const enrollment = enrollments.find(
         (item) =>
           String(item.payment) === String(payment._id)

@@ -37,6 +37,11 @@ const Sidebar = ({ mobileOpen = false, onClose }) => {
       path: "/control/courses",
     },
     {
+      name: "Course Analytics",
+      icon: <FiBookOpen />,
+      path: "/control/course-analytics",
+    },
+    {
       name: "Certificate Templates",
       icon: <FiAward />,
       path: "/control/certificate-templates",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 import {
@@ -194,309 +194,633 @@ const getProgressValue = (
 
 
 
-function LessonAssessments({ lesson }) {
-  const [answers, setAnswers] = useState({});
-  const [submissions, setSubmissions] = useState({});
-  const [messages, setMessages] = useState({});
-  const [busy, setBusy] = useState("");
 
-  const assessments = (lesson?.assessments || []).filter(
-    (item) => item.isPublished !== false
-  );
+const resourceUrl = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
 
-  if (!lesson || assessments.length === 0) return null;
+  const apiOrigin = String(import.meta.env.VITE_API_URL || "")
+    .replace(/\/api\/?$/i, "")
+    .replace(/\/+$/, "");
 
-  const optionLabel = (option) =>
-    typeof option === "string"
-      ? option
-      : option?.text || option?.label || "";
+  return apiOrigin ? `${apiOrigin}/${raw.replace(/^\/+/, "")}` : raw;
+};
 
-  const submit = async (assessment) => {
-    const assessmentId = assessment._id;
-    const questions = assessment.questions || [];
-    let payload;
+const youtubeEmbedUrl = (value) => {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./, "");
+    let videoId = "";
 
-    if (assessment.type === "assignment") {
-      const submissionText = submissions[assessmentId]?.trim() || "";
-      if (!submissionText) {
-        setMessages((prev) => ({
-          ...prev,
-          [assessmentId]: {
-            error: "Please write your assignment submission first.",
-          },
-        }));
-        return;
-      }
-      payload = { submissionText };
-    } else {
-      const submittedAnswers = {};
-      for (const question of questions) {
-        const answer = answers[assessmentId]?.[question._id];
-        if (
-          answer === undefined ||
-          answer === "" ||
-          (Array.isArray(answer) && answer.length === 0)
-        ) {
-          setMessages((prev) => ({
-            ...prev,
-            [assessmentId]: {
-              error: "Please answer every question before submitting.",
-            },
-          }));
-          return;
-        }
-        submittedAnswers[question._id] = answer;
-      }
-      payload = { answers: submittedAnswers };
+    if (host === "youtu.be") {
+      videoId = url.pathname.split("/").filter(Boolean)[0] || "";
+    } else if (host.endsWith("youtube.com")) {
+      videoId =
+        url.searchParams.get("v") ||
+        url.pathname.match(/\/(?:embed|shorts|live)\/([^/?]+)/)?.[1] ||
+        "";
     }
 
-    setBusy(assessmentId);
-    setMessages((prev) => ({ ...prev, [assessmentId]: null }));
+    return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}` : "";
+  } catch {
+    return "";
+  }
+};
+
+function LessonAssessmentCard({ lesson, assessment }) {
+  const [phase, setPhase] = useState("card");
+  const [answers, setAnswers] = useState({});
+  const [submissionText, setSubmissionText] = useState("");
+  const [message, setMessage] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [attemptCount, setAttemptCount] = useState(
+    Number(assessment.studentAttemptCount) || 0
+  );
+  const [latestSubmission, setLatestSubmission] = useState(
+    assessment.studentAttempts?.[0] || null
+  );
+  const [deadlineAt, setDeadlineAt] = useState(0);
+  const [remaining, setRemaining] = useState(0);
+  const autoSubmitting = useRef(false);
+  const submitRef = useRef(null);
+
+  const maxAttempts = Math.max(1, Number(assessment.maxAttempts) || 1);
+  const attemptsRemaining = Math.max(0, maxAttempts - attemptCount);
+
+  useEffect(() => {
+    const savedAttempts = assessment.studentAttempts || [];
+    setAttemptCount(Number(assessment.studentAttemptCount) || savedAttempts.length);
+    setLatestSubmission(savedAttempts[0] || null);
+  }, [assessment._id, assessment.studentAttemptCount, assessment.studentAttempts]);
+
+  const formatSubmittedAt = (value) => {
+    if (!value) return "time unavailable";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? "time unavailable"
+      : date.toLocaleString("en-IN", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        });
+  };
+
+  const isAssignment = assessment.type === "assignment";
+  const hasTimer = isAssignment
+    ? Number(assessment.durationMinutes) > 0
+    : true;
+
+  const durationSeconds = Math.max(
+    60,
+    (Number(assessment.durationMinutes) || 15) * 60
+  );
+
+  const formatTime = (seconds) =>
+    `${String(Math.floor(Math.max(0, seconds) / 60)).padStart(2, "0")}:${String(Math.max(0, seconds) % 60).padStart(2, "0")}`;
+
+  const updateAnswer = (questionId, value) => {
+    setAnswers((previous) => ({ ...previous, [questionId]: value }));
+  };
+
+  const submit = async (automatic = false) => {
+    if (busy) return;
+
+    const questions = assessment.questions || [];
+
+    if (isAssignment && !submissionText.trim() && !automatic) {
+      setMessage({ error: "Please enter your assignment submission." });
+      return;
+    }
+
+    if (!isAssignment && !automatic) {
+      const unanswered = questions.some((question) => {
+        const answer = answers[question._id];
+        return answer === undefined || answer === "" ||
+          (Array.isArray(answer) && answer.length === 0);
+      });
+
+      if (unanswered) {
+        setMessage({ error: "Please answer every question before submitting." });
+        return;
+      }
+    }
+
+    const answerPayload = {};
+    questions.forEach((question) => {
+      if (answers[question._id] !== undefined) {
+        answerPayload[question._id] = answers[question._id];
+      }
+    });
+
+    setBusy(true);
+    setMessage(null);
 
     try {
-      const response = await api.post(
-        `/lessons/${lesson._id}/assessments/${assessmentId}/submit`,
-        payload
+      const { data } = await api.post(
+        `/lessons/${lesson._id}/assessments/${assessment._id}/submit`,
+        {
+          answers: answerPayload,
+          submissionText,
+          autoSubmitted: automatic,
+        }
       );
 
-      const data = response?.data || {};
-      const result =
-        data.attempt ||
-        data.result ||
-        data.data?.attempt ||
-        data.data ||
-        data;
+      const result = data?.result || data?.attempt || data?.data || data;
+      const submittedAt =
+        data?.attempt?.submittedAt ||
+        data?.result?.submittedAt ||
+        new Date().toISOString();
 
-      setMessages((prev) => ({
-        ...prev,
-        [assessmentId]: {
-          success: true,
-          result,
-          text:
-            assessment.type === "assignment"
-              ? "Assignment submitted successfully. It is pending employee grading."
-              : "Assessment submitted successfully.",
-        },
-      }));
+      const savedSummary = {
+        status: data?.attempt?.status || result?.status ||
+          (isAssignment ? "pending_grade" : "graded"),
+        submittedAt,
+        score: result?.score,
+        maxMarks: result?.maxMarks ?? result?.totalMarks ?? assessment.totalMarks,
+        feedback: result?.feedback,
+      };
+
+      setLatestSubmission(savedSummary);
+      setAttemptCount(Number(data?.attemptCount ?? (attemptCount + 1)));
+      setMessage({
+        success: true,
+        text: automatic
+          ? "Time is over. Your answers were submitted automatically."
+          : isAssignment
+            ? "Assignment submitted successfully."
+            : "Assessment submitted successfully.",
+        result: { ...result, ...savedSummary },
+      });
+      setDeadlineAt(0);
+      setPhase("card");
     } catch (error) {
-      setMessages((prev) => ({
-        ...prev,
-        [assessmentId]: {
-          error:
-            error?.response?.data?.message ||
-            error?.response?.data?.error ||
-            "Submission failed. Please try again.",
-        },
-      }));
+      setMessage({
+        error:
+          error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          "Submission failed. Please try again.",
+      });
+      autoSubmitting.current = false;
     } finally {
-      setBusy("");
+      setBusy(false);
     }
   };
 
-  return (
-    <div className="mt-8 space-y-5 border-t border-gray-700 pt-6">
-      <div>
-        <h3 className="text-lg font-bold text-white">Assessments</h3>
-        <p className="mt-1 text-sm text-gray-400">
-          Complete the quiz, test, or assignment for this lesson.
-        </p>
-      </div>
+  submitRef.current = submit;
 
-      {assessments.map((assessment) => {
-        const questions = assessment.questions || [];
-        const message = messages[assessment._id];
-        const isAssignment = assessment.type === "assignment";
+  useEffect(() => {
+    if (phase !== "active" || !hasTimer || !deadlineAt) {
+      return undefined;
+    }
+
+    const tick = () => {
+      const seconds = Math.max(0, Math.ceil((deadlineAt - Date.now()) / 1000));
+      setRemaining(seconds);
+
+      if (seconds === 0 && !autoSubmitting.current) {
+        autoSubmitting.current = true;
+        void submitRef.current?.(true);
+      }
+    };
+
+    tick();
+    const interval = window.setInterval(tick, 500);
+    return () => window.clearInterval(interval);
+  }, [phase, hasTimer, deadlineAt]);
+
+  const start = () => {
+    if (attemptsRemaining <= 0) {
+      setMessage({ error: "You have reached the maximum attempt limit for this assessment." });
+      setPhase("submitted");
+      return;
+    }
+    setMessage(null);
+    autoSubmitting.current = false;
+
+    if (hasTimer) {
+      const deadline = Date.now() + durationSeconds * 1000;
+      setDeadlineAt(deadline);
+      setRemaining(durationSeconds);
+    }
+
+    setPhase("active");
+  };
+
+  if (phase === "card") {
+    const attemptsExhausted = attemptsRemaining === 0;
+    const openSavedStatus = isAssignment && Boolean(latestSubmission);
+
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          if (attemptsExhausted || openSavedStatus) {
+            setMessage(null);
+            setPhase("submitted");
+          } else {
+            setMessage(null);
+            setPhase("instructions");
+          }
+        }}
+        className="group flex w-full items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left transition hover:border-[#D4AF37] hover:shadow-md"
+      >
+        <span className="min-w-0">
+          <span className="flex flex-wrap items-center gap-2 font-bold text-gray-900">
+            {assessment.title}
+            {latestSubmission && (
+              <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700">
+                {isAssignment ? "Submitted" : "Attempt recorded"}
+              </span>
+            )}
+            {attemptsExhausted && (
+              <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">
+                Attempt limit reached
+              </span>
+            )}
+          </span>
+          <span className="mt-1 block text-xs text-gray-500">
+            {hasTimer ? `${assessment.durationMinutes || 15} minutes` : "No time limit"}
+            {" · "}{assessment.totalMarks ?? 0} marks
+          </span>
+          <span className="mt-1 block text-xs text-gray-500">
+            Attempts used: {attemptCount}/{maxAttempts}
+          </span>
+          {latestSubmission?.submittedAt && (
+            <span className="mt-1 block text-xs text-green-700">
+              Last submitted: {formatSubmittedAt(latestSubmission.submittedAt)}
+            </span>
+          )}
+        </span>
+        <span className={`shrink-0 rounded-lg px-3 py-2 text-sm font-bold ${
+          attemptsExhausted
+            ? "bg-gray-100 text-gray-500"
+            : "bg-[#FFF5D5] text-[#84640A] group-hover:bg-[#D4AF37] group-hover:text-gray-950"
+        }`}>
+          {attemptsExhausted ? "View status" : openSavedStatus ? "View submission" : "Open →"}
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-7">
+      <button
+        type="button"
+        disabled={phase === "active"}
+        onClick={() => setPhase("card")}
+        className="mb-5 text-sm font-bold text-gray-600 hover:text-[#8B6E12] disabled:opacity-40"
+      >
+        ← Back to lesson
+      </button>
+
+      {phase === "instructions" && (
+        <>
+          <p className="text-xs font-black uppercase tracking-widest text-[#9A7914]">
+            Instructions
+          </p>
+          <h4 className="mt-2 text-2xl font-black text-gray-950">
+            {assessment.title}
+          </h4>
+          {assessment.description && (
+            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-gray-600">
+              {assessment.description}
+            </p>
+          )}
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {[
+              ["Duration", hasTimer ? `${assessment.durationMinutes || 15} min` : "Untimed"],
+              ["Total marks", assessment.totalMarks ?? 0],
+              ["Maximum attempts", assessment.maxAttempts || 1],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl bg-gray-50 p-4">
+                <p className="text-xs text-gray-500">{label}</p>
+                <p className="mt-1 text-lg font-black text-gray-900">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+            <p className="font-black">Before you begin</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              <li>Questions appear only after you press Start.</li>
+              <li>Read every question and select your answer carefully.</li>
+              <li>{hasTimer ? "When the timer reaches zero, the page will submit your current answers automatically." : "Review your work before submitting your assignment."}</li>
+              <li>You can submit early using the Submit button.</li>
+            </ul>
+          </div>
+
+          <button
+            type="button"
+            onClick={start}
+            className="mt-6 w-full rounded-xl bg-[#D4AF37] px-5 py-3.5 font-black text-gray-950 transition hover:bg-[#edcf55] sm:w-auto"
+          >
+            Start {isAssignment ? "Assignment" : "Test"} →
+          </button>
+        </>
+      )}
+
+      {phase === "active" && (
+        <>
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gray-950 p-4 text-white">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+                Assessment in progress
+              </p>
+              <p className="mt-1 font-black">{assessment.title}</p>
+            </div>
+            {hasTimer && (
+              <span className={`rounded-xl px-4 py-2 text-lg font-black tabular-nums ${
+                remaining <= 60 ? "bg-red-500/20 text-red-300" : "bg-[#D4AF37]/15 text-[#E8C64A]"
+              }`}>
+                {formatTime(remaining)}
+              </span>
+            )}
+          </div>
+
+          {isAssignment ? (
+            <textarea
+              value={submissionText}
+              onChange={(event) => setSubmissionText(event.target.value)}
+              rows={8}
+              placeholder="Write your assignment response or add a shareable link..."
+              className="w-full rounded-xl border border-gray-300 p-4 text-sm outline-none focus:border-[#D4AF37]"
+            />
+          ) : (
+            <div className="space-y-5">
+              {(assessment.questions || []).map((question, index) => {
+                const value = answers[question._id] ??
+                  (question.type === "multiple_select" ? [] : "");
+
+                return (
+                  <fieldset key={question._id || index} className="rounded-xl border border-gray-200 p-4">
+                    <legend className="px-2 text-sm font-bold leading-6 text-gray-900">
+                      {index + 1}. {question.prompt}
+                      <span className="ml-2 text-xs font-normal text-gray-500">
+                        ({question.marks} marks)
+                      </span>
+                    </legend>
+
+                    {question.type === "fill_blank" ? (
+                      <input
+                        value={value}
+                        onChange={(event) => updateAnswer(question._id, event.target.value)}
+                        placeholder="Enter your answer"
+                        className="mt-2 w-full rounded-lg border border-gray-300 p-3 text-sm"
+                      />
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        {(question.options || []).map((option, optionIndex) => {
+                          const label = typeof option === "string"
+                            ? option
+                            : option?.text || option?.label || "";
+                          const multiple = question.type === "multiple_select";
+
+                          return (
+                            <label key={`${question._id}-${optionIndex}`} className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-200 p-3 text-sm text-gray-800 hover:border-[#D4AF37]">
+                              <input
+                                type={multiple ? "checkbox" : "radio"}
+                                name={`${assessment._id}-${question._id}`}
+                                checked={multiple
+                                  ? Array.isArray(value) && value.includes(label)
+                                  : value === label}
+                                onChange={(event) => {
+                                  if (!multiple) {
+                                    updateAnswer(question._id, label);
+                                    return;
+                                  }
+                                  const current = Array.isArray(value) ? value : [];
+                                  updateAnswer(
+                                    question._id,
+                                    event.target.checked
+                                      ? [...current, label]
+                                      : current.filter((item) => item !== label)
+                                  );
+                                }}
+                                className="accent-[#D4AF37]"
+                              />
+                              {label}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </fieldset>
+                );
+              })}
+            </div>
+          )}
+
+          {message?.error && (
+            <p role="alert" className="mt-4 text-sm text-red-600">{message.error}</p>
+          )}
+
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => submit(false)}
+            className="mt-6 w-full rounded-xl bg-[#D4AF37] px-5 py-3.5 font-black text-gray-950 disabled:opacity-50 sm:w-auto"
+          >
+            {busy ? "Submitting..." : isAssignment ? "Submit Assignment" : "Submit Test"}
+          </button>
+        </>
+      )}
+
+      {phase === "submitted" && (
+        <div className="py-5">
+          <p className="text-xs font-black uppercase tracking-widest text-[#9A7914]">
+            {attemptsRemaining === 0 ? "Attempt status" : "Submission record"}
+          </p>
+          <h4 className="mt-2 text-xl font-black text-gray-950">
+            {attemptsRemaining === 0
+              ? "You have reached the maximum attempt limit"
+              : isAssignment
+                ? "Assignment submitted successfully"
+                : "Latest attempt details"}
+          </h4>
+          {(latestSubmission?.submittedAt || message?.result?.submittedAt) && (
+            <p className="mt-2 text-sm text-gray-600">
+              {isAssignment ? "You submitted this assignment successfully on " : "Last submission: "}
+              <strong>
+                {formatSubmittedAt(
+                  latestSubmission?.submittedAt || message?.result?.submittedAt
+                )}
+              </strong>
+            </p>
+          )}
+          <p className="mt-2 text-sm text-gray-600">
+            Status: {
+              latestSubmission?.status === "graded"
+                ? "Graded"
+                : latestSubmission?.status === "pending_grade"
+                  ? "Pending review"
+                  : latestSubmission
+                    ? "Submitted"
+                    : "No saved submission details available"
+            }
+          </p>
+          {latestSubmission?.score !== undefined && latestSubmission?.score !== null && (
+            <p className="mt-2 font-bold text-gray-900">
+              Score: {latestSubmission.score} / {latestSubmission.maxMarks ?? assessment.totalMarks}
+            </p>
+          )}
+          {latestSubmission?.feedback && (
+            <p className="mt-2 text-sm text-gray-600">
+              Feedback: {latestSubmission.feedback}
+            </p>
+          )}
+          {attemptsRemaining === 0 && (
+            <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">
+              You have reached the maximum attempt limit for this assessment.
+            </p>
+          )}
+          {message?.error && (
+            <p role="alert" className="mt-3 text-sm text-red-600">
+              {message.error}
+            </p>
+          )}
+          {isAssignment && attemptsRemaining > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setSubmissionText("");
+                setPhase("instructions");
+              }}
+              className="mt-5 rounded-xl bg-[#D4AF37] px-4 py-2.5 text-sm font-black text-gray-950"
+            >
+              Start another attempt
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setPhase("card");
+              setMessage(null);
+            }}
+            className="mt-5 ml-2 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-bold text-gray-700"
+          >
+            Back to assessments
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LessonLearningContent({ lesson }) {
+  const [showPdf, setShowPdf] = useState(false);
+
+  if (!lesson) return null;
+
+  const notesUrl = resourceUrl(lesson.notesUrl);
+  const pdf = /\.pdf(?:$|[?#])/i.test(notesUrl);
+  const notesVideo = youtubeEmbedUrl(notesUrl);
+  const types = [
+    { id: "quiz", title: "Quizzes", subtitle: "Timed questions and instant scoring" },
+    { id: "dpp", title: "Daily Practice Problems", subtitle: "Practice questions for this lesson" },
+    { id: "test", title: "Tests", subtitle: "Timed assessments" },
+    { id: "assignment", title: "Assignments", subtitle: "Submit work for review and grading" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-[#9A7914]">Lesson material</p>
+            <h3 className="mt-1 text-xl font-black text-gray-950">Notes & study material</h3>
+            <p className="mt-1 text-sm text-gray-500">{lesson.title}</p>
+          </div>
+          {notesUrl && (
+            <a
+              href={notesUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl bg-[#D4AF37] px-4 py-2.5 text-sm font-black text-gray-950"
+            >
+              Open notes ↗
+            </a>
+          )}
+        </div>
+
+        {!notesUrl ? (
+          <p className="mt-5 rounded-xl border border-dashed border-gray-300 p-5 text-sm text-gray-500">
+            Notes have not been added for this lesson yet.
+          </p>
+        ) : pdf ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowPdf((value) => !value)}
+              className="mt-4 rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700"
+            >
+              {showPdf ? "Hide PDF preview" : "Preview PDF"}
+            </button>
+            <a
+              href={notesUrl}
+              target="_blank"
+              rel="noreferrer"
+              download
+              className="ml-2 inline-flex rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700"
+            >
+              Download PDF
+            </a>
+            {showPdf && (
+              <iframe
+                title={`${lesson.title} PDF notes`}
+                src={notesUrl}
+                className="mt-4 h-[65vh] min-h-[420px] w-full rounded-xl border border-gray-200 bg-white"
+              />
+            )}
+          </>
+        ) : notesVideo ? (
+          <iframe
+            title={`${lesson.title} notes video`}
+            src={notesVideo}
+            className="mt-5 aspect-video w-full rounded-xl"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        ) : (
+          <p className="mt-4 text-sm text-gray-500">
+            This lesson has a resource link. For an inline notes preview, add a PDF URL.
+          </p>
+        )}
+      </section>
+
+      {types.map((type) => {
+        const items = (lesson.assessments || []).filter(
+          (item) => item.type === type.id && item.isPublished !== false
+        );
 
         return (
-          <form
-            key={assessment._id}
-            onSubmit={(event) => {
-              event.preventDefault();
-              submit(assessment);
-            }}
-            className="space-y-5 rounded-xl border border-gray-700 bg-gray-900 p-4 sm:p-5"
-          >
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h4 className="font-bold text-white">
-                  {assessment.title}
-                </h4>
-                <span className="rounded-full bg-gray-800 px-2.5 py-1 text-xs capitalize text-gray-300">
-                  {(assessment.type || "quiz").replace("_", " ")}
-                </span>
+          <section key={type.id} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-black text-gray-950">{type.title}</h3>
+                <p className="mt-1 text-sm text-gray-500">{type.subtitle}</p>
               </div>
-              {assessment.description && (
-                <p className="mt-2 whitespace-pre-line text-sm text-gray-300">
-                  {assessment.description}
-                </p>
-              )}
-              <p className="mt-2 text-xs text-gray-400">
-                {assessment.durationMinutes
-                  ? `${assessment.durationMinutes} minutes`
-                  : "No time limit shown"}
-                {" · "}
-                {assessment.totalMarks ?? 0} marks
-                {" · "}
-                Max attempts: {assessment.maxAttempts || 1}
-              </p>
+              <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-600">
+                {items.length} {items.length === 1 ? "item" : "items"}
+              </span>
             </div>
 
-            {isAssignment ? (
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-gray-200">
-                  Your assignment submission
-                </span>
-                <textarea
-                  value={submissions[assessment._id] || ""}
-                  onChange={(event) =>
-                    setSubmissions((prev) => ({
-                      ...prev,
-                      [assessment._id]: event.target.value,
-                    }))
-                  }
-                  rows={5}
-                  placeholder="Write your answer or paste a shareable link to your work..."
-                  className="w-full rounded-lg border border-gray-600 bg-gray-950 p-3 text-sm text-white outline-none focus:border-[#D4AF37]"
-                />
-              </label>
-            ) : (
-              <div className="space-y-5">
-                {questions.map((question, index) => {
-                  const value =
-                    answers[assessment._id]?.[question._id] ??
-                    (question.type === "multiple_select" ? [] : "");
-                  const options = question.options || [];
-
-                  return (
-                    <fieldset
-                      key={question._id || index}
-                      className="space-y-3"
-                    >
-                      <legend className="text-sm font-semibold leading-6 text-gray-100">
-                        {index + 1}. {question.prompt}
-                        <span className="ml-2 text-xs font-normal text-gray-400">
-                          ({question.marks} marks)
-                        </span>
-                      </legend>
-
-                      {question.type === "fill_blank" ? (
-                        <input
-                          type="text"
-                          value={value}
-                          onChange={(event) =>
-                            setAnswers((prev) => ({
-                              ...prev,
-                              [assessment._id]: {
-                                ...prev[assessment._id],
-                                [question._id]: event.target.value,
-                              },
-                            }))
-                          }
-                          placeholder="Enter your answer"
-                          className="w-full rounded-lg border border-gray-600 bg-gray-950 p-3 text-sm text-white outline-none focus:border-[#D4AF37]"
-                        />
-                      ) : options.map((option, optionIndex) => {
-                        const label = optionLabel(option);
-                        const multiple =
-                          question.type === "multiple_select";
-
-                        return (
-                          <label
-                            key={`${question._id}-${optionIndex}`}
-                            className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-700 p-3 text-sm text-gray-200 hover:border-gray-500"
-                          >
-                            <input
-                              type={multiple ? "checkbox" : "radio"}
-                              name={`${assessment._id}-${question._id}`}
-                              checked={
-                                multiple
-                                  ? Array.isArray(value) && value.includes(label)
-                                  : value === label
-                              }
-                              onChange={(event) => {
-                                setAnswers((prev) => {
-                                  const current =
-                                    prev[assessment._id]?.[question._id];
-                                  let nextValue;
-
-                                  if (multiple) {
-                                    const selected = Array.isArray(current)
-                                      ? current
-                                      : [];
-                                    nextValue = event.target.checked
-                                      ? [...selected, label]
-                                      : selected.filter((item) => item !== label);
-                                  } else {
-                                    nextValue = label;
-                                  }
-
-                                  return {
-                                    ...prev,
-                                    [assessment._id]: {
-                                      ...prev[assessment._id],
-                                      [question._id]: nextValue,
-                                    },
-                                  };
-                                });
-                              }}
-                              className="accent-[#D4AF37]"
-                            />
-                            <span>{label}</span>
-                          </label>
-                        );
-                      })}
-                    </fieldset>
-                  );
-                })}
-              </div>
-            )}
-
-            {message?.error && (
-              <p role="alert" className="text-sm text-red-400">
-                {message.error}
+            {items.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500">
+                No {type.title.toLowerCase()} published for this lesson yet.
               </p>
-            )}
-
-            {message?.success && (
-              <div className="rounded-lg border border-green-800 bg-green-950/40 p-3 text-sm text-green-300">
-                <p>{message.text}</p>
-                {!isAssignment &&
-                  message.result?.score !== undefined && (
-                    <p className="mt-1 font-bold">
-                      Score: {message.result.score} /{" "}
-                      {message.result.maxMarks ?? assessment.totalMarks}
-                    </p>
-                  )}
-                {isAssignment && message.result?.score !== undefined && (
-                  <p className="mt-1">
-                    Marks: {message.result.score} /{" "}
-                    {message.result.maxMarks ?? assessment.totalMarks}
-                  </p>
-                )}
-                {isAssignment &&
-                  message.result?.status !== "graded" && (
-                    <p className="mt-1">Status: Pending grading</p>
-                  )}
-                {message.result?.feedback && (
-                  <p className="mt-1">
-                    Feedback: {message.result.feedback}
-                  </p>
-                )}
+            ) : (
+              <div className="space-y-3">
+                {items.map((assessment) => (
+                  <LessonAssessmentCard
+                    key={assessment._id}
+                    lesson={lesson}
+                    assessment={assessment}
+                  />
+                ))}
               </div>
             )}
-
-            <button
-              type="submit"
-              disabled={busy === assessment._id}
-              className="rounded-lg bg-[#D4AF37] px-5 py-3 text-sm font-bold text-gray-950 transition hover:bg-[#b99520] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {busy === assessment._id
-                ? "Submitting..."
-                : isAssignment
-                  ? "Submit Assignment"
-                  : "Submit Assessment"}
-            </button>
-          </form>
+          </section>
         );
       })}
     </div>
@@ -527,6 +851,8 @@ const LearnCourse = () => {
 
   const [selectedLesson, setSelectedLesson] =
     useState(null);
+
+  const [lessonView, setLessonView] = useState(false);
 
   const [progress, setProgress] =
     useState(0);
@@ -674,16 +1000,25 @@ const LearnCourse = () => {
           id
         );
 
+      // The API returns a count and a separate list of completed lessons.
       const completed =
-        progressData?.completedLessons ||
-        progressData?.data
-          ?.completedLessons ||
-        [];
+        progressData?.completedLessonList ||
+        progressData?.data?.completedLessonList ||
+        (Array.isArray(progressData?.completedLessons)
+          ? progressData.completedLessons
+          : Array.isArray(progressData?.data?.completedLessons)
+            ? progressData.data.completedLessons
+            : []);
 
       const completedIds =
         Array.isArray(completed)
           ? completed
-              .map(getLessonId)
+              .map((entry) =>
+                getLessonId(entry?.lesson) ||
+                entry?.lesson?._id ||
+                entry?.lessonId ||
+                getLessonId(entry)
+              )
               .filter(Boolean)
           : [];
 
@@ -808,6 +1143,7 @@ const LearnCourse = () => {
       setSelectedLesson(
         lesson
       );
+        setLessonView(true);
 
       window.scrollTo({
         top: 0,
@@ -1054,281 +1390,161 @@ const LearnCourse = () => {
       )}
 
 
-      {/* No Lessons */}
+      {/* Professional course dashboard and lesson details */}
       {lessons.length === 0 ? (
-        <div className="rounded-2xl bg-white p-12 text-center shadow-sm ring-1 ring-gray-100">
-          <FiBookOpen
-            size={42}
-            className="mx-auto text-gray-300"
-          />
-
-          <h2 className="mt-5 text-xl font-bold text-gray-900">
-            No Lessons Available
-          </h2>
-
+        <section className="rounded-2xl border border-dashed border-gray-300 bg-white p-12 text-center">
+          <FiBookOpen size={42} className="mx-auto text-gray-300" />
+          <h2 className="mt-5 text-xl font-black text-gray-900">No lessons available</h2>
           <p className="mt-2 text-sm text-gray-500">
-            Lessons for this course have
-            not been added yet.
+            Lessons for this course have not been published yet.
           </p>
-        </div>
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Video / Content */}
-          <section className="overflow-hidden rounded-2xl bg-gray-950 shadow-sm lg:col-span-2">
-            {selectedLesson ? (
-              <>
-                {/* Video */}
-                <div className="relative bg-black">
-                  {selectedLesson.videoUrl ? (
-                    <iframe
-                      src={
-                        selectedLesson.videoUrl
-                      }
-                      title={
-                        selectedLesson.title ||
-                        "Course Lesson"
-                      }
-                      className="h-[260px] w-full sm:h-[420px] lg:h-[500px]"
-                      allowFullScreen
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    />
-                  ) : (
-                    <div className="flex h-[260px] flex-col items-center justify-center px-6 text-center text-white sm:h-[420px] lg:h-[500px]">
-                      <FiPlay
-                        size={48}
-                        className="text-gray-600"
-                      />
+        </section>
+      ) : !lessonView || !selectedLesson ? (
+        <section className="space-y-5">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-[#9A7914]">Course curriculum</p>
+            <h2 className="mt-1 text-2xl font-black text-gray-950">Continue learning</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Open a lesson to watch its video, read notes and complete assessments.
+            </p>
+          </div>
 
-                      <p className="mt-4 text-lg font-semibold">
-                        Video not available
-                      </p>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {lessons.map((lesson, index) => {
+              const done = completedLessons.some(
+                (item) => String(item) === String(lesson._id)
+              );
 
-                      <p className="mt-1 max-w-md text-sm text-gray-400">
-                        This lesson does not have
-                        a video attached yet.
-                      </p>
-                    </div>
-                  )}
-                </div>
+              const assessmentCount = (lesson.assessments || []).filter(
+                (item) => item.isPublished !== false
+              ).length;
 
-
-                {/* Lesson Content */}
-                <div className="p-5 sm:p-7">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
-                    <span>
-                      Lesson{" "}
-                      {lessonNumber}
+              return (
+                <button
+                  key={lesson._id}
+                  type="button"
+                  onClick={() => handleSelectLesson(lesson)}
+                  className="group flex min-h-[205px] flex-col rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#D4AF37] hover:shadow-lg"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FFF5D5] font-black text-[#8B6E12]">
+                      {String(index + 1).padStart(2, "0")}
                     </span>
-
-                    {selectedLesson.duration && (
-                      <>
-                        <span>•</span>
-
-                        <span className="inline-flex items-center gap-1">
-                          <FiClock
-                            size={12}
-                          />
-                          {
-                            selectedLesson.duration
-                          }
-                        </span>
-                      </>
-                    )}
-
-                    {selectedLessonCompleted && (
-                      <>
-                        <span>•</span>
-
-                        <span className="font-semibold text-green-400">
-                          Completed
-                        </span>
-                      </>
-                    )}
+                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${
+                      done ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"
+                    }`}>
+                      {done ? "Completed" : "Not completed"}
+                    </span>
                   </div>
 
-                  <h2 className="mt-2 text-xl font-bold text-white sm:text-2xl">
-                    {selectedLesson.title}
-                  </h2>
+                  <h3 className="mt-4 text-lg font-black text-gray-900 group-hover:text-[#8B6E12]">
+                    {lesson.title}
+                  </h3>
+                  <p className="mt-1 line-clamp-2 text-sm text-gray-500">
+                    {lesson.description || "Open this lesson to continue learning."}
+                  </p>
 
-                  {selectedLesson.description && (
-                    <p className="mt-3 whitespace-pre-line text-sm leading-7 text-gray-300">
-                      {
-                        selectedLesson.description
-                      }
-                    </p>
-                  )}
-
-
-                  <LessonAssessments lesson={selectedLesson} />
-
-                  {/* Actions */}
-                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <button
-                      type="button"
-                      onClick={
-                        handleComplete
-                      }
-                      disabled={
-                        selectedLessonCompleted ||
-                        completing
-                      }
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D4AF37] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#b99520] disabled:cursor-not-allowed disabled:bg-gray-600"
-                    >
-                      {completing ? (
-                        <>
-                          <FiRefreshCw className="animate-spin" />
-                          Saving...
-                        </>
-                      ) : selectedLessonCompleted ? (
-                        <>
-                          <FiCheckCircle />
-                          Completed
-                        </>
-                      ) : (
-                        <>
-                          <FiCheckCircle />
-                          Mark Complete
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={
-                        handleNextLesson
-                      }
-                      disabled={
-                        lessonNumber >=
-                        lessons.length
-                      }
-                      className="inline-flex items-center justify-center rounded-xl border border-gray-700 px-5 py-3 text-sm font-semibold text-gray-200 transition hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Next Lesson
-                    </button>
+                  <div className="mt-auto flex flex-wrap gap-2 pt-4 text-xs font-semibold text-gray-500">
+                    {lesson.videoUrl && <span className="rounded-lg bg-gray-100 px-2.5 py-1.5">Video</span>}
+                    {lesson.notesUrl && <span className="rounded-lg bg-gray-100 px-2.5 py-1.5">Notes</span>}
+                    {assessmentCount > 0 && (
+                      <span className="rounded-lg bg-gray-100 px-2.5 py-1.5">
+                        {assessmentCount} assessment{assessmentCount === 1 ? "" : "s"}
+                      </span>
+                    )}
+                    {lesson.duration && <span className="rounded-lg bg-gray-100 px-2.5 py-1.5">{lesson.duration}</span>}
                   </div>
-                </div>
-              </>
-            ) : (
-              <div className="flex min-h-[500px] items-center justify-center text-white">
-                <div className="text-center">
-                  <FiPlay
-                    size={42}
-                    className="mx-auto text-gray-500"
-                  />
+                  <span className="mt-4 text-sm font-black text-[#8B6E12]">Open lesson →</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : (
+        <section className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setLessonView(false)}
+              className="inline-flex items-center gap-2 text-sm font-bold text-gray-600 hover:text-[#8B6E12]"
+            >
+              <FiArrowLeft /> All lessons
+            </button>
+            <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-gray-600 ring-1 ring-gray-200">
+              Lesson {lessonNumber} of {totalLessons}
+            </span>
+          </div>
 
-                  <p className="mt-4 font-semibold">
-                    Select a lesson
+          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="relative bg-gray-950">
+              {selectedLesson.videoUrl ? (
+                <iframe
+                  src={
+                    youtubeEmbedUrl(resourceUrl(selectedLesson.videoUrl)) ||
+                    resourceUrl(selectedLesson.videoUrl)
+                  }
+                  title={selectedLesson.title || "Course lesson"}
+                  className="aspect-video max-h-[70vh] w-full"
+                  allowFullScreen
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                />
+              ) : (
+                <div className="flex min-h-[280px] flex-col items-center justify-center px-6 py-12 text-center text-white sm:min-h-[400px]">
+                  <FiPlay size={44} className="text-gray-500" />
+                  <p className="mt-4 text-lg font-bold">Video not available</p>
+                  <p className="mt-1 max-w-md text-sm text-gray-400">
+                    You can still study from notes and complete the assessments below.
                   </p>
                 </div>
-              </div>
-            )}
-          </section>
-
-
-          {/* Lesson Sidebar */}
-          <aside className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Lessons
-                </h2>
-
-                <p className="mt-1 text-xs text-gray-500">
-                  {completedCount} /{" "}
-                  {totalLessons} completed
-                </p>
-              </div>
-
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#D4AF37]/10 text-[#D4AF37]">
-                <FiBookOpen />
-              </div>
-            </div>
-
-
-            <div className="mt-5 max-h-[620px] space-y-2 overflow-y-auto pr-1">
-              {lessons.map(
-                (
-                  lesson,
-                  index
-                ) => {
-                  const completed =
-                    completedLessons.includes(
-                      lesson._id
-                    );
-
-                  const selected =
-                    selectedLesson?._id ===
-                    lesson._id;
-
-                  return (
-                    <button
-                      key={
-                        lesson._id ||
-                        index
-                      }
-                      type="button"
-                      onClick={() =>
-                        handleSelectLesson(
-                          lesson
-                        )
-                      }
-                      className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition ${
-                        selected
-                          ? "border-[#D4AF37] bg-[#D4AF37]/10"
-                          : "border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-white"
-                      }`}
-                    >
-                      <div
-                        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                          completed
-                            ? "bg-green-50 text-green-600"
-                            : selected
-                            ? "bg-[#D4AF37] text-white"
-                            : "bg-white text-gray-400"
-                        }`}
-                      >
-                        {completed ? (
-                          <FiCheckCircle
-                            size={16}
-                          />
-                        ) : (
-                          <FiPlay
-                            size={14}
-                          />
-                        )}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-gray-400">
-                          Lesson{" "}
-                          {index + 1}
-                        </p>
-
-                        <h3 className="mt-0.5 line-clamp-2 text-sm font-semibold text-gray-800">
-                          {
-                            lesson.title
-                          }
-                        </h3>
-
-                        {lesson.duration && (
-                          <p className="mt-1 flex items-center gap-1 text-xs text-gray-400">
-                            <FiClock
-                              size={11}
-                            />
-                            {
-                              lesson.duration
-                            }
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                  );
-                }
               )}
             </div>
-          </aside>
-        </div>
+
+            <div className="p-5 sm:p-7">
+              <p className="text-xs font-black uppercase tracking-widest text-[#9A7914]">
+                Lesson {lessonNumber}{selectedLesson.duration ? ` · ${selectedLesson.duration}` : ""}
+              </p>
+              <h2 className="mt-2 text-2xl font-black text-gray-950">
+                {selectedLesson.title}
+              </h2>
+              {selectedLesson.description && (
+                <p className="mt-3 whitespace-pre-line text-sm leading-7 text-gray-600">
+                  {selectedLesson.description}
+                </p>
+              )}
+            </div>
+          </section>
+
+          <LessonLearningContent lesson={selectedLesson} />
+
+          <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+            <div>
+              <p className="font-black text-gray-900">Lesson progress</p>
+              <p className="mt-1 text-sm text-gray-500">
+                Mark this lesson complete when you finish studying it.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleComplete}
+                disabled={selectedLessonCompleted || completing}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D4AF37] px-5 py-3 text-sm font-black text-gray-950 transition hover:bg-[#edcf55] disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
+              >
+                {completing ? "Saving..." : selectedLessonCompleted ? "✓ Completed" : "Mark Complete"}
+              </button>
+              <button
+                type="button"
+                onClick={handleNextLesson}
+                disabled={lessonNumber >= lessons.length}
+                className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-5 py-3 text-sm font-bold text-gray-700 transition hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next lesson →
+              </button>
+            </div>
+          </div>
+        </section>
       )}
+
     </div>
   );
 };

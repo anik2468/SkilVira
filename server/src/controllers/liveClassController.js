@@ -390,7 +390,21 @@ export const endLiveClass = async (req, res) => {
     if (!context) return;
 
     context.liveClass.status = "ended";
-    context.liveClass.endedAt = new Date();
+    const classEndedAt = new Date();
+    context.liveClass.endedAt = classEndedAt;
+
+    // Ending a room closes every active attendance session.
+    for (const session of context.liveClass.attendance || []) {
+      if (!session.leftAt) {
+        session.leftAt = classEndedAt;
+        session.durationSeconds = Math.max(
+          0,
+          Math.floor(
+            (classEndedAt.getTime() - new Date(session.joinedAt).getTime()) / 1000
+          )
+        );
+      }
+    }
 
     if (context.liveClass.activeQuiz?.status === "active") {
       context.liveClass.activeQuiz.status = "closed";
@@ -425,6 +439,111 @@ export const endLiveClass = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Unable to end live class.",
+    });
+  }
+};
+
+export const recordLiveClassJoin = async (req, res) => {
+  try {
+    const context = await requireClassAccess(req, res, req.params.id);
+    if (!context) return;
+
+    if (roleOf(req) !== "student") {
+      return res.status(403).json({
+        success: false,
+        message: "Only students can record class attendance.",
+      });
+    }
+
+    const { liveClass } = context;
+    if (liveClass.status !== "live") {
+      return res.status(409).json({
+        success: false,
+        message: "Attendance can only be recorded for a live class.",
+      });
+    }
+
+    const studentId = userIdOf(req);
+    const activeSession = (liveClass.attendance || []).find(
+      (session) =>
+        String(session.student) === studentId && !session.leftAt
+    );
+
+    if (activeSession) {
+      return res.json({
+        success: true,
+        message: "Attendance session already active.",
+      });
+    }
+
+    liveClass.attendance.push({
+      student: studentId,
+      joinedAt: new Date(),
+      leftAt: null,
+      durationSeconds: 0,
+    });
+    await liveClass.save();
+
+    return res.status(201).json({
+      success: true,
+      message: "Class attendance recorded.",
+    });
+  } catch (error) {
+    console.error("LIVE CLASS ATTENDANCE JOIN ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to record class attendance.",
+    });
+  }
+};
+
+export const recordLiveClassLeave = async (req, res) => {
+  try {
+    const context = await requireClassAccess(req, res, req.params.id);
+    if (!context) return;
+
+    if (roleOf(req) !== "student") {
+      return res.status(403).json({
+        success: false,
+        message: "Only students can record class attendance.",
+      });
+    }
+
+    const { liveClass } = context;
+    const studentId = userIdOf(req);
+    const activeSession = [...(liveClass.attendance || [])]
+      .reverse()
+      .find(
+        (session) =>
+          String(session.student) === studentId && !session.leftAt
+      );
+
+    if (!activeSession) {
+      return res.json({
+        success: true,
+        message: "No active attendance session.",
+      });
+    }
+
+    const leftAt = new Date();
+    activeSession.leftAt = leftAt;
+    activeSession.durationSeconds = Math.max(
+      0,
+      Math.floor(
+        (leftAt.getTime() - new Date(activeSession.joinedAt).getTime()) / 1000
+      )
+    );
+    await liveClass.save();
+
+    return res.json({
+      success: true,
+      message: "Class attendance updated.",
+    });
+  } catch (error) {
+    console.error("LIVE CLASS ATTENDANCE LEAVE ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to update class attendance.",
     });
   }
 };

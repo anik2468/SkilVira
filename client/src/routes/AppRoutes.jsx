@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import MainLayout from "../layouts/MainLayout";
@@ -7,98 +8,177 @@ import RecruiterLayout from "../layouts/RecruiterLayout";
 import EmployeeLayout from "../layouts/EmployeeLayout";
 import AmbassadorLayout from "../layouts/AmbassadorLayout";
 import AdminLayout from "../layouts/AdminLayout";
+import LimitedAdminLayout from "../layouts/LimitedAdminLayout";
 
 import ProtectedRoute from "../components/auth/ProtectedRoute";
 
 // Public
-import Home from "../pages/Home/Home";
-import ContactSupport from "../pages/ContactSupport";
-import CompanyContactSettings from "../pages/Admin/CompanyContactSettings";
-import ChooseRole from "../pages/ChooseRole/ChooseRole";
-import Login from "../pages/Login/Login";
-import Register from "../pages/Register/Register";
-import ForgotPassword from "../pages/Auth/ForgotPassword";
-import ResetPassword from "../pages/Auth/ResetPassword";
-import VerifyCertificate from "../pages/VerifyCertificate/VerifyCertificate";
+
+
+
+
+
+
+
+
 
 // Student
-import StudentDashboard from "../pages/Student/Dashboard";
-import StudentCourses from "../pages/Student/Courses";
-import CourseDetails from "../pages/Student/CourseDetails";
-import CourseCheckout from "../pages/Student/CourseCheckout";
-import StudentInternships from "../pages/Student/Internships";
-import InternshipDetails from "../pages/Student/InternshipDetails";
-import Applications from "../pages/Student/Applications";
-import SavedInternships from "../pages/Student/SavedInternships";
-import MyCourses from "../pages/Student/MyCourses";
-import LearnCourse from "../pages/Student/LearnCourse";
-import Certificates from "../pages/Student/Certificates";
-import Profile from "../pages/Student/Profile";
-import EditProfile from "../pages/Student/EditProfile";
-import Notifications from "../pages/Student/Notifications";
-import StudentSettings from "../pages/Student/Settings";
-import MyDocuments from "../pages/Student/MyDocuments";
-import MyOfferLetters from "../pages/Student/MyOfferLetters";
-import MyStatus from "../pages/Student/MyStatus";
-import ManualPayment from "../pages/Student/ManualPayment";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Recruiter
-import RecruiterDashboard from "../pages/Recruiter/Dashboard";
-import CompanyProfile from "../pages/Recruiter/CompanyProfile";
-import RecruiterProfile from "../pages/Recruiter/Profile";
-import RecruiterInternships from "../pages/Recruiter/Internships";
-import CreateInternship from "../pages/Recruiter/CreateInternship";
-import EditInternship from "../pages/Recruiter/EditInternship";
-import RecruiterApplications from "../pages/Recruiter/Applications";
-import RecruiterStudents from "../pages/Recruiter/Students";
-import RecruiterSettings from "../pages/Recruiter/Settings";
+
+
+
+
+
+
+
+
 
 // Employee
-import EmployeeDashboard from "../pages/Employee/Dashboard";
-import EmployeeUsers from "../pages/Employee/Users";
-import EmployeeCompanies from "../pages/Employee/Companies";
-import EmployeeUniversities from "../pages/Employee/Universities";
-import EmployeeReportsVerification from "../pages/Employee/ReportsVerification";
-import EmployeeReportTemplates from "../pages/Employee/ReportTemplates";
-import EmployeeCommunities from "../pages/Employee/Communities";
-import EmployeeProfile from "../pages/Employee/Profile";
-import EmployeeSettings from "../pages/Employee/Settings";
-import EmployeeRecruiters from "../pages/Employee/Recruiters";
-import EmployeeAmbassadors from "../pages/Employee/Ambassadors";
-import EmployeeInternships from "../pages/Employee/Internships";
-import EmployeeCreateInternship from "../pages/Employee/CreateInternship";
-import EmployeeCertificateTemplates from "../pages/Employee/CertificateTemplates";
-import EmployeeCertificateVerification from "../pages/Employee/CertificateVerification";
-import EmployeeOfferLetterTemplates from "../pages/Employee/OfferLetterTemplates";
-import EmployeeOfferLetterVerification from "../pages/Employee/OfferLetterVerification";
-import EmployeePaymentSettings from "../pages/Employee/PaymentSettings";
-import EmployeePaymentVerification from "../pages/Employee/PaymentVerification";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Ambassador
-import AmbassadorDashboard from "../pages/Ambassador/Dashboard";
-import AmbassadorAnalytics from "../pages/Ambassador/Analytics";
-import AmbassadorReferrals from "../pages/Ambassador/Referrals";
-import AmbassadorCommunities from "../pages/Ambassador/Communities";
-import AmbassadorStudents from "../pages/Ambassador/Students";
-import AmbassadorProfile from "../pages/Ambassador/Profile";
+
+
+
+
+
 
 // Control
-import ControlDashboard from "../pages/Admin/Dashboard";
-import ControlInternships from "../pages/Admin/Internships";
-import ControlRecruiters from "../pages/Admin/Recruiters";
-import ControlStudents from "../pages/Admin/Students";
-import ControlApplications from "../pages/Admin/Applications";
-import ControlCertificates from "../pages/Admin/Certificates";
-import ControlColleges from "../pages/Admin/Colleges";
-import ControlSettings from "../pages/Admin/Settings";
-import ControlEmployees from "../pages/Admin/Employees";
-import ControlEmployeeActivity from "../pages/Admin/EmployeeActivity";
-import CreateUser from "../pages/Admin/CreateUser";
-import Courses from "../pages/Admin/Courses";
-import CourseLessons from "../pages/Admin/CourseLessons";
-import LiveClassroom from "../pages/LiveClassroom";
-import ReferralPricingSettings from "../pages/Admin/ReferralPricingSettings";
-import CertificateTemplates from "../pages/Admin/CertificateTemplates";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const Home = lazy(() => import("../pages/Home/Home"));
+const ContactSupport = lazy(() => import("../pages/ContactSupport"));
+const CompanyContactSettings = lazy(() => import("../pages/Admin/CompanyContactSettings"));
+const ChooseRole = lazy(() => import("../pages/ChooseRole/ChooseRole"));
+const Login = lazy(() => import("../pages/Login/Login"));
+const Register = lazy(() => import("../pages/Register/Register"));
+const ForgotPassword = lazy(() => import("../pages/Auth/ForgotPassword"));
+const ResetPassword = lazy(() => import("../pages/Auth/ResetPassword"));
+const VerifyCertificate = lazy(() => import("../pages/VerifyCertificate/VerifyCertificate"));
+const StudentDashboard = lazy(() => import("../pages/Student/Dashboard"));
+const StudentCourses = lazy(() => import("../pages/Student/Courses"));
+const CourseDetails = lazy(() => import("../pages/Student/CourseDetails"));
+const CourseCheckout = lazy(() => import("../pages/Student/CourseCheckout"));
+const StudentInternships = lazy(() => import("../pages/Student/Internships"));
+const InternshipDetails = lazy(() => import("../pages/Student/InternshipDetails"));
+const Applications = lazy(() => import("../pages/Student/Applications"));
+const SavedInternships = lazy(() => import("../pages/Student/SavedInternships"));
+const MyCourses = lazy(() => import("../pages/Student/MyCourses"));
+const LearnCourse = lazy(() => import("../pages/Student/LearnCourse"));
+const Certificates = lazy(() => import("../pages/Student/Certificates"));
+const Profile = lazy(() => import("../pages/Student/Profile"));
+const EditProfile = lazy(() => import("../pages/Student/EditProfile"));
+const Notifications = lazy(() => import("../pages/Student/Notifications"));
+const StudentSettings = lazy(() => import("../pages/Student/Settings"));
+const MyDocuments = lazy(() => import("../pages/Student/MyDocuments"));
+const MyOfferLetters = lazy(() => import("../pages/Student/MyOfferLetters"));
+const MyStatus = lazy(() => import("../pages/Student/MyStatus"));
+const ManualPayment = lazy(() => import("../pages/Student/ManualPayment"));
+const RecruiterDashboard = lazy(() => import("../pages/Recruiter/Dashboard"));
+const CompanyProfile = lazy(() => import("../pages/Recruiter/CompanyProfile"));
+const RecruiterProfile = lazy(() => import("../pages/Recruiter/Profile"));
+const RecruiterInternships = lazy(() => import("../pages/Recruiter/Internships"));
+const CreateInternship = lazy(() => import("../pages/Recruiter/CreateInternship"));
+const EditInternship = lazy(() => import("../pages/Recruiter/EditInternship"));
+const RecruiterApplications = lazy(() => import("../pages/Recruiter/Applications"));
+const RecruiterStudents = lazy(() => import("../pages/Recruiter/Students"));
+const RecruiterSettings = lazy(() => import("../pages/Recruiter/Settings"));
+const EmployeeDashboard = lazy(() => import("../pages/Employee/Dashboard"));
+const EmployeeUsers = lazy(() => import("../pages/Employee/Users"));
+const EmployeeCompanies = lazy(() => import("../pages/Employee/Companies"));
+const EmployeeUniversities = lazy(() => import("../pages/Employee/Universities"));
+const EmployeeReportsVerification = lazy(() => import("../pages/Employee/ReportsVerification"));
+const EmployeeReportTemplates = lazy(() => import("../pages/Employee/ReportTemplates"));
+const EmployeeCommunities = lazy(() => import("../pages/Employee/Communities"));
+const EmployeeProfile = lazy(() => import("../pages/Employee/Profile"));
+const EmployeeSettings = lazy(() => import("../pages/Employee/Settings"));
+const EmployeeRecruiters = lazy(() => import("../pages/Employee/Recruiters"));
+const EmployeeAmbassadors = lazy(() => import("../pages/Employee/Ambassadors"));
+const EmployeeInternships = lazy(() => import("../pages/Employee/Internships"));
+const EmployeeCreateInternship = lazy(() => import("../pages/Employee/CreateInternship"));
+const EmployeeCertificateTemplates = lazy(() => import("../pages/Employee/CertificateTemplates"));
+const EmployeeCertificateVerification = lazy(() => import("../pages/Employee/CertificateVerification"));
+const EmployeeOfferLetterTemplates = lazy(() => import("../pages/Employee/OfferLetterTemplates"));
+const EmployeeOfferLetterVerification = lazy(() => import("../pages/Employee/OfferLetterVerification"));
+const EmployeePaymentSettings = lazy(() => import("../pages/Employee/PaymentSettings"));
+const EmployeePaymentVerification = lazy(() => import("../pages/Employee/PaymentVerification"));
+const AmbassadorDashboard = lazy(() => import("../pages/Ambassador/Dashboard"));
+const AmbassadorAnalytics = lazy(() => import("../pages/Ambassador/Analytics"));
+const AmbassadorReferrals = lazy(() => import("../pages/Ambassador/Referrals"));
+const AmbassadorCommunities = lazy(() => import("../pages/Ambassador/Communities"));
+const AmbassadorStudents = lazy(() => import("../pages/Ambassador/Students"));
+const AmbassadorProfile = lazy(() => import("../pages/Ambassador/Profile"));
+const AmbassadorEditProfile = lazy(() => import("../pages/Ambassador/EditProfile"));
+const ControlDashboard = lazy(() => import("../pages/Admin/Dashboard"));
+const LimitedAdminDashboard = lazy(() => import("../pages/Admin/LimitedDashboard"));
+const LimitedAdminUsers = lazy(() => import("../pages/Admin/LimitedUsers"));
+const ControlInternships = lazy(() => import("../pages/Admin/Internships"));
+const ControlRecruiters = lazy(() => import("../pages/Admin/Recruiters"));
+const ControlStudents = lazy(() => import("../pages/Admin/Students"));
+const ControlApplications = lazy(() => import("../pages/Admin/Applications"));
+const ControlCertificates = lazy(() => import("../pages/Admin/Certificates"));
+const ControlColleges = lazy(() => import("../pages/Admin/Colleges"));
+const ControlSettings = lazy(() => import("../pages/Admin/Settings"));
+const ControlEmployees = lazy(() => import("../pages/Admin/Employees"));
+const ControlEmployeeActivity = lazy(() => import("../pages/Admin/EmployeeActivity"));
+const CreateUser = lazy(() => import("../pages/Admin/CreateUser"));
+const Courses = lazy(() => import("../pages/Admin/Courses"));
+const CourseLessons = lazy(() => import("../pages/Admin/CourseLessons"));
+const LiveClassroom = lazy(() => import("../pages/LiveClassroom"));
+const ReferralPricingSettings = lazy(() => import("../pages/Admin/ReferralPricingSettings"));
+const CertificateTemplates = lazy(() => import("../pages/Admin/CertificateTemplates"));
+const CourseAnalytics = lazy(() => import("../pages/CourseAnalytics"));
 
 const NotFound = () => (
   <div className="flex min-h-screen items-center justify-center bg-white px-6 text-center">
@@ -116,7 +196,8 @@ const NotFound = () => (
 
 const AppRoutes = () => {
   return (
-    <Routes>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-gray-500">Loading page...</div>}>
+      <Routes>
       {/* Public */}
       <Route element={<MainLayout />}>
         <Route path="/" element={<Home />} />
@@ -142,7 +223,7 @@ const AppRoutes = () => {
       />
       <Route
         path="/admin/login"
-        element={<Navigate to="/login/control" replace />}
+        element={<Navigate to="/login/admin" replace />}
       />
 
       <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -249,13 +330,12 @@ const AppRoutes = () => {
           path="/employee/dashboard"
           element={<EmployeeDashboard />}
         />
-          <Route path="/employee/contact-settings" element={<CompanyContactSettings />} />
-          <Route path="/employee/referral-settings" element={<ReferralPricingSettings />} />
 
         <Route
           path="/employee/courses"
           element={<Courses />}
         />
+        <Route path="/employee/course-analytics" element={<CourseAnalytics />} />
           <Route
             path="/employee/courses/:id/lessons"
             element={<CourseLessons />}
@@ -307,11 +387,6 @@ const AppRoutes = () => {
           path="/employee/offer-letter-verification"
           element={<EmployeeOfferLetterVerification />}
         />
-
-        <Route
-          path="/employee/payment-settings"
-          element={<EmployeePaymentSettings />}
-        />
         <Route
           path="/employee/payment-verification"
           element={<EmployeePaymentVerification />}
@@ -337,7 +412,7 @@ const AppRoutes = () => {
           path="/employee/internships/create"
           element={<EmployeeCreateInternship />}
         />
-        <Route path="/employee/settings" element={<EmployeeSettings />} />
+
         <Route
           path="/employee/profile"
           element={<EmployeeProfile />}
@@ -373,9 +448,34 @@ const AppRoutes = () => {
           element={<AmbassadorStudents />}
         />
         <Route
+          path="/ambassador/profile/edit"
+          element={<AmbassadorEditProfile />}
+        />
+        <Route
           path="/ambassador/profile"
           element={<AmbassadorProfile />}
         />
+      </Route>
+
+      {/* Restricted Admin panel: separate from Super Admin */}
+      <Route
+        element={
+          <ProtectedRoute allowedRole="admin">
+            <LimitedAdminLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/admin/dashboard" element={<LimitedAdminDashboard />} />
+        <Route path="/admin/users" element={<LimitedAdminUsers />} />
+        <Route path="/admin/recruiters" element={<ControlRecruiters />} />
+        <Route path="/admin/ambassadors" element={<EmployeeAmbassadors />} />
+        <Route path="/admin/internships" element={<ControlInternships />} />
+        <Route path="/admin/applications" element={<ControlApplications />} />
+        <Route path="/admin/certificates" element={<ControlCertificates />} />
+        <Route path="/admin/courses" element={<Courses />} />
+        <Route path="/admin/courses/:id/lessons" element={<CourseLessons />} />
+        <Route path="/admin/live-class/:id" element={<LiveClassroom />} />
+        <Route path="/admin/course-analytics" element={<CourseAnalytics />} />
       </Route>
 
       {/* Control panel */}
@@ -394,6 +494,7 @@ const AppRoutes = () => {
           <Route path="/control/referral-settings" element={<ReferralPricingSettings />} />
 
         <Route path="/control/courses" element={<Courses />} />
+        <Route path="/control/course-analytics" element={<CourseAnalytics />} />
           <Route
             path="/control/courses/:id/lessons"
             element={<CourseLessons />}
@@ -453,6 +554,7 @@ const AppRoutes = () => {
 
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </Suspense>
   );
 };
 

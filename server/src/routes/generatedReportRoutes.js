@@ -16,6 +16,21 @@ import auth from "../middleware/auth.js";
 
 const router = express.Router();
 
+const STAFF_ROLES = ["employee", "admin", "control"];
+
+router.use(auth, (req, res, next) => {
+  const role = String(req.user?.role || "").toLowerCase();
+
+  if (!STAFF_ROLES.includes(role)) {
+    return res.status(403).json({
+      success: false,
+      message: "Only authorized staff can access report verification.",
+    });
+  }
+
+  next();
+});
+
 
 // =====================================================
 // GENERATE REPORT
@@ -23,7 +38,6 @@ const router = express.Router();
 
 router.post(
   "/generate",
-  auth,
   createGeneratedReport
 );
 
@@ -35,7 +49,6 @@ router.post(
 
 router.get(
   "/pending",
-  auth,
   getPendingReports
 );
 
@@ -46,7 +59,6 @@ router.get(
 
 router.get(
   "/approved",
-  auth,
   getApprovedReports
 );
 
@@ -57,7 +69,6 @@ router.get(
 
 router.get(
   "/:id",
-  auth,
   getGeneratedReportById
 );
 
@@ -68,7 +79,6 @@ router.get(
 
 router.put(
   "/:id/update",
-  auth,
   updateGeneratedReport
 );
 
@@ -79,7 +89,6 @@ router.put(
 
 router.put(
   "/:id/revision",
-  auth,
   requestReportRevision
 );
 
@@ -90,7 +99,6 @@ router.put(
 
 router.put(
   "/:id/approve",
-  auth,
   approveGeneratedReport
 );
 
@@ -101,7 +109,6 @@ router.put(
 
 router.put(
   "/:id/reject",
-  auth,
   rejectGeneratedReport
 );
 

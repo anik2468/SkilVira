@@ -16,7 +16,7 @@ const requireControlAdmin = (req, res, next) => {
     .trim()
     .toLowerCase();
 
-  if (!["control", "admin", "superadmin"].includes(role)) {
+  if (role !== "control") {
     return res.status(403).json({
       success: false,
       message: "Control-panel administrator access required.",
@@ -26,7 +26,7 @@ const requireControlAdmin = (req, res, next) => {
   next();
 };
 
-// All endpoints require login and control/admin privileges.
+// All endpoints require Super Admin (control) privileges.
 router.use(auth, requireControlAdmin);
 
 // Employee directory and employee creation
