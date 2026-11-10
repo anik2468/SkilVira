@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   FiGrid,
@@ -10,10 +11,13 @@ import {
   FiClipboard,
   FiBarChart2,
   FiUserCheck,
+  FiMenu,
+  FiX,
 } from "react-icons/fi";
 
 const LimitedAdminLayout = () => {
   const navigate = useNavigate();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   let user = {};
   try {
@@ -45,7 +49,20 @@ const LimitedAdminLayout = () => {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white">
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform duration-300 lg:sticky lg:top-0 lg:translate-x-0 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         <div className="border-b border-slate-100 px-6 py-6">
           <div className="text-2xl font-black">
             <span className="text-[#D4AF37]">Skil</span>
@@ -75,6 +92,7 @@ const LimitedAdminLayout = () => {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={() => setMobileOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold ${
                   isActive
@@ -100,9 +118,26 @@ const LimitedAdminLayout = () => {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-x-hidden p-5 sm:p-8">
-        <Outlet />
-      </main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-white px-4 lg:hidden">
+          <button
+            type="button"
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen((open) => !open)}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-700"
+          >
+            {mobileOpen ? <FiX size={22} /> : <FiMenu size={22} />}
+          </button>
+          <span className="font-black text-slate-900">
+            Skil<span className="text-[#D4AF37]">Vira</span> Admin
+          </span>
+        </header>
+
+        <main className="min-w-0 flex-1 overflow-x-hidden p-4 sm:p-8">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 };
